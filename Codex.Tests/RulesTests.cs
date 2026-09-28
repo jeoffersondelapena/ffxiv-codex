@@ -56,4 +56,30 @@ public class RulesTests
         Assert.Equal("0 of 0 obtained, 0%", Progress.Summary(0, 0, 0));
         Assert.Equal("3 of 50 obtained, 6% · 12 hidden by Include", Progress.Summary(3, 50, 12));
     }
+
+    [Fact]
+    public void Only_the_categories_a_list_uses_get_a_checkbox_in_the_trackers_order()
+    {
+        var plain = new Entry { Sources = { S("world"), S("hunt", "B") } };
+        var mixed = new Entry { Sources = { S("hunt", "A"), S("dungeon") } };
+        Assert.Empty(Kinds.PresentOptIn(new[] { plain }));
+        Assert.Equal(new[] { "dungeon", "hunt" }, Kinds.PresentOptIn(new[] { plain, mixed }).Select(o => o.Key));
+    }
+
+    [Fact]
+    public void Hunts_are_labelled_by_rank()
+    {
+        Assert.Equal("B-rank hunt", Kinds.SourceLabel(S("hunt", "B")));
+        Assert.Equal("S-rank hunt", Kinds.SourceLabel(S("hunt", "S")));
+        Assert.Equal("Open world", Kinds.SourceLabel(S("world")));
+    }
+
+    [Fact]
+    public void An_entry_sits_at_its_lowest_visible_source()
+    {
+        var e = new Entry { Sources = { new Source { K = "dungeon", Lv = 50 }, new Source { K = "world", Lv = 28 }, new Source { K = "hunt", Rank = "A", Lv = 20 } } };
+        Assert.Equal(28, Kinds.ShownLevel(e, new HashSet<string>()));
+        Assert.Equal(20, Kinds.ShownLevel(e, new HashSet<string> { "hunt" }));
+        Assert.Null(Kinds.ShownLevel(new Entry { Sources = { new Source { K = "raid", Lv = 60 } } }, new HashSet<string>()));
+    }
 }

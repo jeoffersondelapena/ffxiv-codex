@@ -18,6 +18,9 @@ public sealed class Source
     public int OffX { get; set; }
     public int OffY { get; set; }
 
+    public string? Tp { get; set; }
+    public string? Aethernet { get; set; }
+
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }
 
@@ -35,6 +38,7 @@ public static class Kinds
 {
     public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "quest", "default" };
 
+    // The tracker's category order; a list only shows the ones its sources use.
     public static readonly (string Key, string Label)[] OptIn =
     {
         ("dungeon", "Dungeons"), ("trial", "Trials"), ("raid", "Raids"), ("carnivale", "Masked Carnivale"),
@@ -45,8 +49,29 @@ public static class Kinds
     public static readonly (int Lo, int Hi)[] Bands =
         { (1, 15), (16, 30), (31, 40), (41, 50), (51, 60), (61, 70), (71, 80), (81, 90), (91, 100) };
 
+    public static bool IsOptIn(Source s)
+        => s.K == "hunt" ? s.Rank != "B" : Array.IndexOf(AlwaysOn, s.K) < 0;
+
     public static bool Visible(Source s, HashSet<string> enabled)
         => s.K == "hunt" ? s.Rank == "B" || enabled.Contains("hunt") : Array.IndexOf(AlwaysOn, s.K) >= 0 || enabled.Contains(s.K);
+
+    public static List<(string Key, string Label)> PresentOptIn(IEnumerable<Entry> entries)
+    {
+        var present = new HashSet<string>();
+        foreach (var e in entries)
+            foreach (var s in e.Sources)
+                if (IsOptIn(s)) present.Add(s.K);
+        return OptIn.Where(o => present.Contains(o.Key)).ToList();
+    }
+
+    // An entry sits at its lowest visible source, the way the tracker's level filter reads it.
+    public static int? ShownLevel(Entry e, HashSet<string> enabled)
+    {
+        int? best = null;
+        foreach (var s in e.Sources)
+            if (Visible(s, enabled) && (best == null || s.Lv < best)) best = s.Lv;
+        return best;
+    }
 
     public static string Label(string kind)
     {
@@ -57,6 +82,9 @@ public static class Kinds
             "totem" => "Whalaqee totem", "quest" => "Quest reward", "default" => "Known from the start", _ => kind,
         };
     }
+
+    public static string SourceLabel(Source s)
+        => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);
 
     public static (int Lo, int Hi)? BandOf(int level)
     {

@@ -9,6 +9,8 @@ public sealed class Configuration : IPluginConfiguration
     public Dictionary<string, List<string>> EnabledKinds { get; set; } = new();
     public Dictionary<string, bool> UnobtainedOnly { get; set; } = new();
     public bool Travel { get; set; } = false;
+    public uint MountId { get; set; } = 0;
+    public float MountDistance { get; set; } = 15f;
 
     public HashSet<string> KindsFor(string list)
         => new(EnabledKinds.TryGetValue(list, out var v) ? v : new List<string>());

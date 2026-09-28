@@ -3,6 +3,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
 
 namespace Codex;
 
@@ -17,10 +18,11 @@ public sealed class MainWindow : Window
     private readonly IGameGui gameGui;
     private readonly IChatGui chat;
     private readonly IPluginLog log;
+    private readonly IDataManager data;
 
-    public MainWindow(Plugin plugin, IGameGui gameGui, IChatGui chat, IPluginLog log) : base("Codex##main")
+    public MainWindow(Plugin plugin, IGameGui gameGui, IChatGui chat, IPluginLog log, IDataManager data) : base("Codex##main")
     {
-        this.plugin = plugin; this.gameGui = gameGui; this.chat = chat; this.log = log;
+        this.plugin = plugin; this.gameGui = gameGui; this.chat = chat; this.log = log; this.data = data;
         Size = new Vector2(560, 640);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
@@ -45,6 +47,7 @@ public sealed class MainWindow : Window
     private void DrawList(string list)
     {
         var cfg = plugin.Config;
+        var entries = plugin.Data.For(list);
         var enabled = cfg.KindsFor(list);
         var unobtainedOnly = cfg.UnobtainedOnly.GetValueOrDefault(list);
         if (ImGui.Checkbox("Unobtained Only", ref unobtainedOnly)) { cfg.UnobtainedOnly[list] = unobtainedOnly; plugin.SaveConfig(); }
@@ -59,8 +62,11 @@ public sealed class MainWindow : Window
             ImGui.SameLine();
             if (ImGui.SmallButton("Stop")) plugin.Travel.Cancel();
         }
+        DrawMountPicker();
         ImGui.TextColored(Grey, "Include:");
-        foreach (var (key, label) in Kinds.OptIn)
+        var present = Kinds.PresentOptIn(entries);
+        if (present.Count == 0) { ImGui.SameLine(); ImGui.TextColored(Grey, "nothing optional in this list"); }
+        foreach (var (key, label) in present)
         {
             ImGui.SameLine();
             var on = enabled.Contains(key);
@@ -69,42 +75,67 @@ public sealed class MainWindow : Window
         ImGui.Separator();
         if (!plugin.State.Ready) { ImGui.TextColored(Grey, "Log in to see this character's progress."); return; }
 
-        var entries = plugin.Data.For(list);
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
-        var hidden = entries.Count(e => !e.Sources.Any(s => Kinds.Visible(s, enabled)));
+        var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled));
+        var hidden = levelById.Count(kv => kv.Value == null);
         var obtained = doneById.Count(kv => kv.Value);
         var summary = Progress.Summary(obtained, entries.Count, hidden);
         if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, summary); else ImGui.Text(summary);
         ImGui.Spacing();
-        foreach (var (lo, hi) in Kinds.Bands)
+        var groups = Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b)).ToList();
+        groups.Add(("Level unknown", "bandnone", null));
+        foreach (var (title, key, band) in groups)
         {
-            var rows = new List<(Entry Entry, List<Source> Shown, bool Done)>();
+            var rows = new List<(Entry Entry, List<Source> Shown, bool Done, int Lv)>();
             foreach (var e in entries)
             {
-                if (e.MinLv < lo || e.MinLv > hi) continue;
-                var shown = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
-                if (shown.Count == 0) continue;
-                rows.Add((e, shown, doneById[e.Id]));
+                if (levelById[e.Id] is not int lv) continue;
+                var inBand = band is (int lo, int hi) ? lv >= lo && lv <= hi : Kinds.BandOf(lv) == null;
+                if (!inBand) continue;
+                rows.Add((e, e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList(), doneById[e.Id], lv));
             }
             if (rows.Count == 0) continue;
             var done = rows.Count(r => r.Done);
             var complete = done == rows.Count;
-            var header = $"Lv {lo}-{hi}   {done}/{rows.Count}" + (complete ? "   Complete, look at the next band" : "") + $"##band{lo}";
+            var header = $"{title}   {done}/{rows.Count}" + (complete ? "   Complete, look at the next band" : "") + $"##{key}";
             if (complete) ImGui.PushStyleColor(ImGuiCol.Text, Green);
             var open = ImGui.CollapsingHeader(header, complete ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.DefaultOpen);
             if (complete) ImGui.PopStyleColor();
             if (!open) continue;
             ImGui.Indent();
-            foreach (var (e, shown, isDone) in rows.OrderBy(r => r.Entry.MinLv).ThenBy(r => r.Entry.Id))
+            foreach (var (e, shown, isDone, lv) in rows.OrderBy(r => r.Lv).ThenBy(r => r.Entry.Id))
             {
                 if (unobtainedOnly && isDone) continue;
-                DrawEntry(list, e, shown, isDone);
+                DrawEntry(list, e, shown, isDone, lv);
             }
             ImGui.Unindent();
         }
     }
 
-    private void DrawEntry(string list, Entry e, List<Source> shown, bool done)
+    private void DrawMountPicker()
+    {
+        var cfg = plugin.Config;
+        ImGui.TextColored(Grey, "Mount:");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(220);
+        if (ImGui.BeginCombo("##mount", MountName(cfg.MountId)))
+        {
+            if (ImGui.Selectable("Mount Roulette", cfg.MountId == 0)) { cfg.MountId = 0; plugin.SaveConfig(); }
+            foreach (var (id, name) in plugin.Game.UnlockedMounts(data))
+                if (ImGui.Selectable(name, cfg.MountId == id)) { cfg.MountId = id; plugin.SaveConfig(); }
+            ImGui.EndCombo();
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Travel On Tap mounts up for the longer stretches and flies where the zone allows it.");
+    }
+
+    private string MountName(uint id)
+    {
+        if (id == 0) return "Mount Roulette";
+        var row = data.GetExcelSheet<Mount>()?.GetRowOrDefault(id);
+        return row == null ? "Mount Roulette" : GameState.TitleCase(row.Value.Singular.ExtractText());
+    }
+
+    private void DrawEntry(string list, Entry e, List<Source> shown, bool done, int lv)
     {
         if (list == "bst")
         {
@@ -116,18 +147,24 @@ public sealed class MainWindow : Window
             ImGui.TextColored(done ? Green : Grey, done ? "[x]" : "[ ]");
         }
         ImGui.SameLine();
-        ImGui.TextColored(Grey, $"Lv {e.MinLv,3}");
+        ImGui.TextColored(Grey, $"Lv {lv,3}");
+        if (e.MinLv > 1)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Grey, $"min {e.MinLv}");
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Minimum level to obtain");
+        }
         ImGui.SameLine();
         var best = shown.FirstOrDefault(s => s.Rec) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
             Tap(e, best);
         if (ImGui.IsItemHovered())
         {
-            var lines = shown.Select(s => $"{Kinds.Label(s.K)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "") + (s.Note != null ? $"; {s.Note}" : ""));
+            var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "") + (s.Note != null ? $"; {s.Note}" : ""));
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
         ImGui.SameLine();
-        ImGui.TextColored(Grey, $"{Kinds.Label(best.K)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
+        ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
     }
 
     private bool IsDone(string list, Entry e)
@@ -142,7 +179,7 @@ public sealed class MainWindow : Window
         }
         else
         {
-            chat.Print($"[Codex] {e.Name}: {Kinds.Label(s.K)} — {s.Name}" + (s.Loc != null ? $" in {s.Loc}" : "") + " (no map position).");
+            chat.Print($"[Codex] {e.Name}: {Kinds.SourceLabel(s)} — {s.Name}" + (s.Loc != null ? $" in {s.Loc}" : "") + " (no map position).");
             log.Information($"[Codex] Tap on {e.Name}: no map position for {s.Name} ({s.K})");
         }
         if (plugin.Config.Travel) plugin.Travel.Go(s, e.Name);

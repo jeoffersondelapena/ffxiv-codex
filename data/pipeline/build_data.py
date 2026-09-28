@@ -8,6 +8,9 @@ ICON_KIND={'Dungeon.png':'dungeon','Trials_icon1.png':'trial','Raid.png':'raid',
            'Boss_FATE_icon.png':'fate','Slay_enemy_FATE_icon.png':'fate','Defense_FATE_icon.png':'fate','Escort_FATE_icon.png':'fate','Collection_FATE_icon.png':'fate',
            'Daily_Quest_icon.png':'questmob','Quest_icon.png':'questmob','Feature_Quest_icon.png':'quest'}
 stages={v['name']:(int(k),v['level']) for k,v in json.load(open('carnivale_stages.json')).items()}
+# The wiki's note on totems: sold by Wayward Gaheel Ja in Ul'dah - Steps of Thal (12.5, 12.9). Lifestream reaches him via the
+# Steps of Nald aetheryte and the Sapphire Avenue Exchange shard.
+TOTEM_VENDOR=dict(loc="Ul'dah - Steps of Thal",xy="12.5, 12.9",tp="Ul'dah - Steps of Nald",aethernet="Sapphire Avenue Exchange")
 elite=set(json.load(open('elite_marks.json')))
 def title_of(href): return urllib.parse.unquote(href.split('/wiki/',1)[1]).replace('_',' ')
 def slug(t): return re.sub(r'[^A-Za-z0-9._-]+','_',t)[:120]
@@ -234,7 +237,7 @@ def build_blu():
         for cm in common:
             if any('totem' in ic.lower() for ic in cm['icons']):
                 parts=cm['text'].split(' - ',1)
-                entry['sources'].append(dict(k='totem',name=parts[0].strip(),loc="Ul'dah",xy=None,lv=minlv,lvMax=None,note=(parts[1].strip() if len(parts)>1 else ''),rank=None,rec=True))
+                entry['sources'].append(dict(k='totem',name=parts[0].strip(),lv=minlv,lvMax=None,note=(parts[1].strip() if len(parts)>1 else ''),rank=None,rec=True,**TOTEM_VENDOR))
         page=None
         for f in glob.glob('pages/spells/*.html'):
             if f.split('/')[-1][:-5].replace('_',' ') in (name,name+' (Blue Mage)'): page=f

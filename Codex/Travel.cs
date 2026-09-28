@@ -1,17 +1,28 @@
 using System.Numerics;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Ipc.Exceptions;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using Lumina.Excel.Sheets;
 
 namespace Codex;
 
-// teleport with Lifestream, then walk with vnavmesh, waiting for its mesh like GatherBuddy Reborn does
+// Lifestream for the teleport and a city aethernet hop, a mount for the long stretches, vnavmesh for the path.
 public sealed class Travel
 {
-    private enum Step { Idle, Teleporting, WaitingForNav, Walking }
+    private enum Step { Idle, WaitingForLifestream, Teleporting, Aethernet, WaitingForNav, Mounting, Walking, Dismounting }
+
+    private const uint MountRoulette = 9;
+    private const uint DismountAction = 23;
 
     private readonly IClientState clientState;
+    private readonly IObjectTable objects;
+    private readonly ICondition condition;
+    private readonly IDataManager data;
+    private readonly GameState game;
+    private readonly Configuration config;
     private readonly IPluginLog log;
     private readonly IChatGui chat;
     private readonly ICallGateSubscriber<string, object> lsExecute;
@@ -20,25 +31,35 @@ public sealed class Travel
     private readonly ICallGateSubscriber<float> navProgress;
     private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> pointOnFloor;
     private readonly ICallGateSubscriber<Vector3, bool, bool> moveTo;
-    private readonly ICallGateSubscriber<bool> moving;
+    private readonly ICallGateSubscriber<bool> pathfinding;
+    private readonly ICallGateSubscriber<bool> pathRunning;
     private readonly ICallGateSubscriber<object> stop;
 
     private Step step = Step.Idle;
+    private Step afterSend = Step.Idle;
     private Source? target;
     private string targetName = "";
+    private string? pending;
+    private bool zoneOnly;
+    private uint startTerritory;
+    private Vector3 floor;
     private DateTime since;
     private DateTime lastReport;
+    private DateTime lastAction;
 
-    public Travel(IDalamudPluginInterface pi, IClientState clientState, IPluginLog log, IChatGui chat)
+    public Travel(IDalamudPluginInterface pi, IClientState clientState, IObjectTable objects, ICondition condition, IDataManager data,
+                  GameState game, Configuration config, IPluginLog log, IChatGui chat)
     {
-        this.clientState = clientState; this.log = log; this.chat = chat;
+        this.clientState = clientState; this.objects = objects; this.condition = condition; this.data = data; this.game = game;
+        this.config = config; this.log = log; this.chat = chat;
         lsExecute    = pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand");
         lsBusy       = pi.GetIpcSubscriber<bool>("Lifestream.IsBusy");
         navReady     = pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
         navProgress  = pi.GetIpcSubscriber<float>("vnavmesh.Nav.BuildProgress");
         pointOnFloor = pi.GetIpcSubscriber<Vector3, bool, float, Vector3?>("vnavmesh.Query.Mesh.PointOnFloor");
         moveTo       = pi.GetIpcSubscriber<Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo");
-        moving       = pi.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
+        pathfinding  = pi.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
+        pathRunning  = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
         stop         = pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     }
 
@@ -47,38 +68,29 @@ public sealed class Travel
 
     public void Go(Source source, string entryName)
     {
-        if (!source.HasMapPosition)
-        {
-            chat.Print($"[Codex] {entryName}: no map position known for {source.Name}; flag only.");
-            return;
-        }
         Cancel();
-        target = source; targetName = entryName; since = DateTime.Now; lastReport = DateTime.MinValue;
-        if (clientState.TerritoryType == source.Terr)
+        target = source; targetName = entryName; lastReport = DateTime.MinValue;
+        zoneOnly = !source.HasMapPosition;
+        if (zoneOnly && string.IsNullOrEmpty(source.Loc))
         {
-            step = Step.WaitingForNav;
-            Report($"already in {source.Loc}; waiting for the navmesh");
+            chat.Print($"[Codex] {entryName}: no location known for {source.Name}; flag only.");
+            target = null;
             return;
         }
-        try
+        if (!zoneOnly && clientState.TerritoryType == source.Terr)
         {
-            lsExecute.InvokeAction($"tp {source.Loc}");
-            step = Step.Teleporting;
-            Report($"teleporting to {source.Loc}");
+            Enter(Step.WaitingForNav, $"already in {source.Loc}; waiting for the navmesh");
+            return;
         }
-        catch (IpcNotReadyError)
-        {
-            chat.PrintError("[Codex] Lifestream is not loaded; cannot teleport. The map flag is set.");
-            log.Warning("[Codex] Travel: Lifestream IPC not ready");
-            step = Step.Idle;
-        }
+        var where = source.Tp ?? source.Loc!;
+        Queue($"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
     public void Cancel()
     {
-        if (step == Step.Walking) { try { stop.InvokeAction(); } catch (IpcNotReadyError) { } }
+        if (step is Step.Walking or Step.Dismounting) { try { stop.InvokeAction(); } catch (IpcNotReadyError) { } }
         if (step != Step.Idle) log.Information("[Codex] Travel cancelled");
-        step = Step.Idle; Status = "";
+        step = Step.Idle; Status = ""; pending = null;
     }
 
     public void OnUpdate(IFramework framework)
@@ -88,21 +100,43 @@ public sealed class Travel
         {
             switch (step)
             {
-                case Step.Teleporting:
-                    if (clientState.TerritoryType == target.Terr && !lsBusy.InvokeFunc())
+                case Step.WaitingForLifestream:
+                    if (!lsBusy.InvokeFunc())
                     {
-                        step = Step.WaitingForNav; Report("arrived; waiting for the navmesh");
+                        lsExecute.InvokeAction(pending!);
+                        log.Information($"[Codex] Travel: sent '{pending}' to Lifestream");
+                        step = afterSend; since = DateTime.Now;
+                    }
+                    else if (Elapsed() > 30) Fail("Lifestream stayed busy for 30 seconds");
+                    break;
+                case Step.Teleporting:
+                    var moved = clientState.TerritoryType != startTerritory;
+                    var busy = lsBusy.InvokeFunc();
+                    if (!busy && Elapsed() > 2 && (moved || (!zoneOnly && clientState.TerritoryType == target.Terr)))
+                        AfterTeleport();
+                    else if (!busy && !moved && Elapsed() > 10)
+                    {
+                        if (zoneOnly) Finish($"Lifestream did not travel; you may already be in {target.Loc}");
+                        else Fail($"Lifestream did not start the teleport to '{target.Tp ?? target.Loc}'");
                     }
                     else if (Elapsed() > 120) Fail("teleport did not complete in two minutes");
+                    break;
+                case Step.Aethernet:
+                    if (!lsBusy.InvokeFunc() && Elapsed() > 2 && clientState.TerritoryType == target.Terr)
+                        Enter(Step.WaitingForNav, "arrived; waiting for the navmesh");
+                    else if (Elapsed() > 60) Fail($"the aethernet hop to {target.Aethernet} did not complete");
                     break;
                 case Step.WaitingForNav:
                     if (navReady.InvokeFunc())
                     {
                         var (x, z) = MapMath.MapToWorld(target.Xy![0], target.Xy[1], target.Size, target.OffX, target.OffY);
-                        var floor = pointOnFloor.InvokeFunc(new Vector3(x, 1024f, z), false, 5f);
-                        if (floor == null) { Fail($"no walkable ground near ({target.Xy[0]}, {target.Xy[1]})"); break; }
-                        if (moveTo.InvokeFunc(floor.Value, false)) { step = Step.Walking; Report($"walking to ({target.Xy[0]:0.0}, {target.Xy[1]:0.0})"); }
-                        else Fail("vnavmesh refused the path request");
+                        var found = pointOnFloor.InvokeFunc(new Vector3(x, 1024f, z), false, 5f);
+                        if (found == null) { Fail($"no walkable ground near ({target.Xy[0]}, {target.Xy[1]})"); break; }
+                        floor = found.Value;
+                        var player = objects.LocalPlayer?.Position;
+                        var far = player != null && Vector3.Distance(player.Value, floor) > config.MountDistance;
+                        if (far && !Mounted && TryMount()) Enter(Step.Mounting, "mounting up");
+                        else StartWalk();
                     }
                     else if ((DateTime.Now - lastReport).TotalSeconds > 5)
                     {
@@ -110,14 +144,29 @@ public sealed class Travel
                         if (Elapsed() > 300) Fail("navmesh not ready after five minutes");
                     }
                     break;
+                case Step.Mounting:
+                    if (Mounted) StartWalk();
+                    else if (Elapsed() > 8) { log.Warning("[Codex] Travel: mount did not come up in time, walking"); StartWalk(); }
+                    break;
                 case Step.Walking:
-                    if (!moving.InvokeFunc())
+                    var pos = objects.LocalPlayer?.Position;
+                    var close = pos != null && Vector3.Distance(pos.Value, floor) < 4f;
+                    var active = pathfinding.InvokeFunc() || pathRunning.InvokeFunc();
+                    if (close || (!active && Elapsed() > 3))
                     {
-                        chat.Print($"[Codex] Arrived near {target.Name} for {targetName}.");
-                        log.Information($"[Codex] Travel done: {targetName} via {target.Name} in {target.Loc}");
-                        step = Step.Idle; Status = "";
+                        if (Mounted) { lastAction = DateTime.MinValue; Enter(Step.Dismounting, "dismounting"); }
+                        else Finish($"Arrived near {target.Name} for {targetName}");
                     }
                     else if (Elapsed() > 600) Fail("walk took longer than ten minutes");
+                    break;
+                case Step.Dismounting:
+                    if (!Mounted) Finish($"Arrived near {target.Name} for {targetName}");
+                    else if (Elapsed() > 10) Finish($"Arrived near {target.Name} for {targetName}, still mounted");
+                    else if ((DateTime.Now - lastAction).TotalSeconds > 1.5 && game.CanUse(ActionType.GeneralAction, DismountAction))
+                    {
+                        game.Use(ActionType.GeneralAction, DismountAction);
+                        lastAction = DateTime.Now;
+                    }
                     break;
             }
         }
@@ -127,7 +176,55 @@ public sealed class Travel
         }
     }
 
+    private bool Mounted => condition[ConditionFlag.Mounted];
+
+    private void Queue(string command, Step next, string report)
+    {
+        pending = command; afterSend = next; startTerritory = clientState.TerritoryType;
+        Enter(Step.WaitingForLifestream, report);
+    }
+
+    private void AfterTeleport()
+    {
+        if (zoneOnly) { Finish($"Teleported to {target!.Loc}; {target.Name} roams there, no fixed spot"); return; }
+        if (target!.Aethernet != null && clientState.TerritoryType != target.Terr)
+        {
+            Queue(target.Aethernet, Step.Aethernet, $"aethernet to {target.Aethernet}");
+            return;
+        }
+        Enter(Step.WaitingForNav, "arrived; waiting for the navmesh");
+    }
+
+    private bool TryMount()
+    {
+        var id = config.MountId;
+        if (id != 0 && game.IsMountUnlocked(id) && game.CanUse(ActionType.Mount, id)) return game.Use(ActionType.Mount, id);
+        if (game.CanUse(ActionType.GeneralAction, MountRoulette)) return game.Use(ActionType.GeneralAction, MountRoulette);
+        log.Information("[Codex] Travel: mounting is not possible here, walking");
+        return false;
+    }
+
+    private void StartWalk()
+    {
+        var fly = Mounted && FlyingUnlocked();
+        var how = fly ? "flying" : Mounted ? "riding" : "walking";
+        if (moveTo.InvokeFunc(floor, fly)) Enter(Step.Walking, $"{how} to ({target!.Xy![0]:0.0}, {target.Xy[1]:0.0})");
+        else Fail("vnavmesh refused the path request");
+    }
+
+    private bool FlyingUnlocked()
+    {
+        var row = data.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(clientState.TerritoryType);
+        return row != null && game.FlyingUnlocked(row.Value.AetherCurrentCompFlgSet.RowId);
+    }
+
     private double Elapsed() => (DateTime.Now - since).TotalSeconds;
+
+    private void Enter(Step next, string report)
+    {
+        step = next; since = DateTime.Now;
+        Report(report);
+    }
 
     private void Report(string what)
     {
@@ -135,11 +232,17 @@ public sealed class Travel
         log.Information($"[Codex] Travel: {what}");
     }
 
+    private void Finish(string text)
+    {
+        chat.Print($"[Codex] {text}.");
+        log.Information($"[Codex] Travel done: {text}");
+        step = Step.Idle; Status = ""; target = null;
+    }
+
     private void Fail(string why)
     {
         chat.PrintError($"[Codex] Travel stopped: {why}.");
         log.Warning($"[Codex] Travel stopped: {why}");
-        step = Step.Idle; Status = "";
+        step = Step.Idle; Status = ""; target = null;
     }
-
 }

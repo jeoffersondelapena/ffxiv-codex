@@ -24,14 +24,14 @@ public sealed class Plugin : IDalamudPlugin
     public Travel Travel { get; }
 
     public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState clientState,
-                  IGameGui gameGui, IChatGui chat, IPluginLog log)
+                  IObjectTable objects, ICondition condition, IDataManager data, IGameGui gameGui, IChatGui chat, IPluginLog log)
     {
         this.pi = pi; this.commands = commands; this.framework = framework; this.clientState = clientState; this.log = log;
         Config = pi.GetPluginConfig() as Configuration ?? new Configuration();
         Data = CodexData.Load(pi, log);
         State = new CharacterState(pi, Game, log);
-        Travel = new Travel(pi, clientState, log, chat);
-        main = new MainWindow(this, gameGui, chat, log);
+        Travel = new Travel(pi, clientState, objects, condition, data, Game, Config, log, chat);
+        main = new MainWindow(this, gameGui, chat, log, data);
         windows.AddWindow(main);
         pi.UiBuilder.Draw += windows.Draw;
         pi.UiBuilder.OpenMainUi += Open;
