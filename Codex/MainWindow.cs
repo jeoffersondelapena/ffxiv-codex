@@ -70,6 +70,12 @@ public sealed class MainWindow : Window
         if (!plugin.State.Ready) { ImGui.TextColored(Grey, "Log in to see this character's progress."); return; }
 
         var entries = plugin.Data.For(list);
+        var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
+        var hidden = entries.Count(e => !e.Sources.Any(s => Kinds.Visible(s, enabled)));
+        var obtained = doneById.Count(kv => kv.Value);
+        var summary = Progress.Summary(obtained, entries.Count, hidden);
+        if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, summary); else ImGui.Text(summary);
+        ImGui.Spacing();
         foreach (var (lo, hi) in Kinds.Bands)
         {
             var rows = new List<(Entry Entry, List<Source> Shown, bool Done)>();
@@ -78,7 +84,7 @@ public sealed class MainWindow : Window
                 if (e.MinLv < lo || e.MinLv > hi) continue;
                 var shown = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
                 if (shown.Count == 0) continue;
-                rows.Add((e, shown, IsDone(list, e)));
+                rows.Add((e, shown, doneById[e.Id]));
             }
             if (rows.Count == 0) continue;
             var done = rows.Count(r => r.Done);

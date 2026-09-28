@@ -46,4 +46,14 @@ public class RulesTests
         Assert.False(new Source { Xy = new[] { 24f, 16f } }.HasMapPosition);
         Assert.True(new Source { Terr = 148, Map = 4, Xy = new[] { 24f, 16f } }.HasMapPosition);
     }
+
+    [Fact]
+    public void Overall_progress_reads_as_a_count_and_a_floored_percentage()
+    {
+        Assert.Equal("37 of 124 obtained, 29%", Progress.Summary(37, 124, 0));
+        Assert.Equal("124 of 124 obtained, 100%", Progress.Summary(124, 124, 0));
+        Assert.Equal("199 of 200 obtained, 99%", Progress.Summary(199, 200, 0));
+        Assert.Equal("0 of 0 obtained, 0%", Progress.Summary(0, 0, 0));
+        Assert.Equal("3 of 50 obtained, 6% · 12 hidden by Include", Progress.Summary(3, 50, 12));
+    }
 }

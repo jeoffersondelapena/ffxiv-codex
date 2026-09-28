@@ -17,7 +17,7 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 - Per-character state file keyed by content id (never the name in the file name) in the plugin's config directory; two game windows write separate files; survives restarts. Nothing character-related ever enters the repository.
 
 ## UI
-- Window per list (Blue Magic, Beasts): band groups, entries with level and check mark, "Unobtained Only" filter, the opt-in category checkboxes, a band shows complete when everything shown in it is done ("look at the next band"), search optional.
+- Window per list (Blue Magic, Beasts): an overall line at the top ("N of T obtained, P%", floored, plus how many entries the Include filters hide), band groups, entries with level and check mark, "Unobtained Only" filter, the opt-in category checkboxes, a band shows complete when everything shown in it is done ("look at the next band"), search optional.
 - Tap an entry: map flag at the source's coordinates (map link + flag), zone named. Sources without coordinates show the location text.
 - Travel toggle (off by default): teleport to the zone's nearest aetheryte via Lifestream IPC (`Lifestream.ExecuteCommand`, e.g. `tp <name>`), then walk with vnavmesh: wait for `vnavmesh.Nav.IsReady` (show progress from `Nav.BuildProgress`, like GatherBuddy Reborn), convert map coords to world X/Z (Map sheet scale/offset), `vnavmesh.Query.Mesh.PointOnFloor` for height, `vnavmesh.SimpleMove.PathfindAndMoveTo`. Best effort; never required.
 - Logs: Information lines for meaningful events (data loaded, state saved, tap/travel actions, IPC missing), none per frame. Comments in code terse (the user's commit hook rejects explainer prose).
@@ -36,3 +36,4 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 
 ## Status / next actions
 - 2026-09-28: repo created and pushed; pipeline moved in; codex-data.json built (124 spells with unlock links, 50 beasts, 42/56 zones mapped); plugin v0.1 builds (window, bands, filters, automatic spell checks, manual beast ticks, map flag, travel toggle with navmesh wait) and is registered as a dev plugin. Data file renamed codex-data.json because the manifest Codex.json collides on a case-insensitive disk. Next: in-game test against the acceptance criteria; then wire the weekly data refresh.
+- 2026-09-28 later: overall progress line per tab (user request); the private tracker artifact link was found in this file by the push guard and purged with a history rewrite (the repo is public; links to private artifacts stay out of it).

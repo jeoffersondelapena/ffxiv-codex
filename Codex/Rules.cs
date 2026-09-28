@@ -64,3 +64,14 @@ public static class Kinds
         return null;
     }
 }
+
+public static class Progress
+{
+    // Floored so 100% only ever means complete.
+    public static string Summary(int done, int total, int hidden)
+    {
+        var pct = total == 0 ? 0 : (int)(100L * done / total);
+        var s = $"{done} of {total} obtained, {pct}%";
+        return hidden > 0 ? s + $" · {hidden} hidden by Include" : s;
+    }
+}
