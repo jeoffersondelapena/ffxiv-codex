@@ -83,6 +83,9 @@ public static class Kinds
         };
     }
 
+    public static string LevelText(Source s)
+        => s.LvMax is int max && max != s.Lv ? $"Lv {s.Lv}-{max}" : $"Lv {s.Lv}";
+
     public static string SourceLabel(Source s)
         => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);
 

@@ -158,9 +158,16 @@ public sealed class MainWindow : Window
         var best = shown.FirstOrDefault(s => s.Rec) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
             Tap(e, best);
+        if (e.Rank is > 0 and <= 5)
+        {
+            ImGui.SameLine(0, 2);
+            ImGui.TextColored(Amber, new string('*', e.Rank.Value));
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank}");
+        }
         if (ImGui.IsItemHovered())
         {
-            var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "") + (s.Note != null ? $"; {s.Note}" : ""));
+            var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
+                + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : ""));
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
         ImGui.SameLine();

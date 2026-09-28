@@ -82,4 +82,12 @@ public class RulesTests
         Assert.Equal(20, Kinds.ShownLevel(e, new HashSet<string> { "hunt" }));
         Assert.Null(Kinds.ShownLevel(new Entry { Sources = { new Source { K = "raid", Lv = 60 } } }, new HashSet<string>()));
     }
+
+    [Fact]
+    public void A_source_shows_its_level_range_when_it_has_one()
+    {
+        Assert.Equal("Lv 28", Kinds.LevelText(new Source { Lv = 28 }));
+        Assert.Equal("Lv 28-31", Kinds.LevelText(new Source { Lv = 28, LvMax = 31 }));
+        Assert.Equal("Lv 28", Kinds.LevelText(new Source { Lv = 28, LvMax = 28 }));
+    }
 }
