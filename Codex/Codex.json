@@ -1,0 +1,9 @@
+{
+    "Name": "Codex",
+    "Author": "jeoffersondelapena",
+    "Punchline": "Which Blue Mage spell or Beastmaster beast to get next.",
+    "Description": "The Blue Magic Spellbook and the Master's Bestiary grouped by level band, with check marks for what this character already has, a map flag on tap, and an optional teleport-and-walk. Open with '/codex'.",
+    "InternalName": "Codex",
+    "ApplicableVersion": "any",
+    "Tags": ["blue mage", "beastmaster", "spellbook", "bestiary"]
+}

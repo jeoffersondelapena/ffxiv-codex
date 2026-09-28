@@ -1,0 +1,18 @@
+bin/
+obj/
+out/
+*.user
+.vs/
+.idea/
+__pycache__/
+# wiki download caches and pipeline scratch: fetched again when missing, never committed (wiki text)
+data/pipeline/blu.html
+data/pipeline/bst.html
+data/pipeline/page_urls.json
+data/pipeline/pages/
+data/pipeline/enemies/
+data/pipeline/places/
+data/pipeline/pylib/
+data/pipeline/data.json
+data/pipeline/report.txt
+data/pipeline/gamedata/

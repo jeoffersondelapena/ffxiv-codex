@@ -1,0 +1,22 @@
+# Codex
+
+A private Dalamud plugin for FFXIV: which Blue Mage spell or Beastmaster beast to get next.
+
+- `/codex` opens the window: the Blue Magic Spellbook and the Master's Bestiary grouped by level band (1-15, 16-30, then tens), lowest level first, each entry with its level and a check mark. Learned spells are read from the game; beasts are ticked by hand and remembered per character.
+- "Unobtained Only" hides what is done. Open-world, FATE, levequest, quest, totem and B-rank hunt sources are always shown; dungeons, trials, raids, the Masked Carnivale, guildhests, treasure dungeons, A/S-rank hunts and treasure maps are opt-in per list.
+- A band shows "Complete" when everything shown in it is done.
+- Tapping an entry flags its source on the map. With "Travel On Tap" on, it also teleports there through Lifestream and walks there through vnavmesh, waiting for the navmesh first.
+
+## Data
+
+`data/codex-data.json` is generated: the wiki's Blue Magic Spellbook and Master's Bestiary pages, scraped by `data/pipeline/` (moved from the log tracker), plus each spell's unlock link and each location's map data from the game tables (XIVAPI). Refresh after a patch:
+
+```bash
+python3 data/pipeline/run_all.py
+```
+
+The wiki page caches under `data/pipeline/` are ignored by git; only the compact output is committed. Nothing about a character is ever in this repository: per-character files live in the plugin's own settings folder.
+
+## Build
+
+Same shape as Overlay Doctor: .NET 10 SDK, Dalamud dev assemblies at the XIV on Mac `dalamud/Hooks/dev` path, `dotnet build Codex/Codex.csproj -c Release`; the output in `out/` is loaded as a Dalamud dev plugin.
