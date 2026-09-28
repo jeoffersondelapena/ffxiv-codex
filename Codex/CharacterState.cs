@@ -47,6 +47,14 @@ public sealed class CharacterState
         }
     }
 
+    // One-time carry-over from the tracker: adds ticks, never removes any.
+    public int Import(IEnumerable<int> ids)
+    {
+        var added = ids.Count(beasts.Add);
+        if (added > 0) Save();
+        return added;
+    }
+
     public void Save()
     {
         if (path == null) return;

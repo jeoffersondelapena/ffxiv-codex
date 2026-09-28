@@ -10,6 +10,7 @@ public sealed class Configuration : IPluginConfiguration
     public Dictionary<string, bool> UnobtainedOnly { get; set; } = new();
     public bool Travel { get; set; } = false;
     public uint MountId { get; set; } = 0;
+    public string Sort { get; set; } = "lv";
     public float MountDistance { get; set; } = 15f;
 
     public HashSet<string> KindsFor(string list)

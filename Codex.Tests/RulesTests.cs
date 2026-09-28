@@ -90,4 +90,30 @@ public class RulesTests
         Assert.Equal("Lv 28-31", Kinds.LevelText(new Source { Lv = 28, LvMax = 31 }));
         Assert.Equal("Lv 28", Kinds.LevelText(new Source { Lv = 28, LvMax = 28 }));
     }
+
+    [Fact]
+    public void Search_reads_the_name_and_the_shown_sources_case_insensitively()
+    {
+        var e = new Entry { Name = "Bad Breath", Sources = { new Source { K = "world", Name = "Stroper", Loc = "South Shroud", Note = "several spots" } } };
+        Assert.True(Kinds.Matches(e, e.Sources, ""));
+        Assert.True(Kinds.Matches(e, e.Sources, "bad"));
+        Assert.True(Kinds.Matches(e, e.Sources, "STROPER"));
+        Assert.True(Kinds.Matches(e, e.Sources, "south shroud"));
+        Assert.True(Kinds.Matches(e, e.Sources, "spots"));
+        Assert.False(Kinds.Matches(e, e.Sources, "toad"));
+        Assert.False(Kinds.Matches(e, Array.Empty<Source>(), "stroper"));
+    }
+
+    [Fact]
+    public void Sorting_follows_the_trackers_options()
+    {
+        var a = new Entry { Id = 3, Name = "Loom" }; var b = new Entry { Id = 1, Name = "Water Cannon" }; var c = new Entry { Id = 2, Name = "Bristle" };
+        var levels = new Dictionary<int, int> { [3] = 50, [1] = 1, [2] = 20 };
+        string Names(string sort) => string.Join(",", Kinds.Sorted(new[] { a, b, c }, e => e, e => levels[e.Id], sort).Select(e => e.Name));
+        Assert.Equal("Water Cannon,Bristle,Loom", Names("lv"));
+        Assert.Equal("Water Cannon,Bristle,Loom", Names("no"));
+        Assert.Equal("Loom,Bristle,Water Cannon", Names("no-desc"));
+        Assert.Equal("Bristle,Loom,Water Cannon", Names("az"));
+        Assert.Equal("Water Cannon,Loom,Bristle", Names("za"));
+    }
 }

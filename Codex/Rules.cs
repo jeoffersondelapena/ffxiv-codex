@@ -83,6 +83,28 @@ public static class Kinds
         };
     }
 
+    public static readonly (string Key, string Label)[] Sorts =
+        { ("lv", "by level"), ("no", "by number"), ("no-desc", "by number, descending"), ("az", "A to Z"), ("za", "Z to A") };
+
+    // The tracker's search: the entry's name, or a shown source's name, place or note.
+    public static bool Matches(Entry e, IEnumerable<Source> shown, string query)
+    {
+        var q = query.Trim();
+        if (q.Length == 0) return true;
+        if (e.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) return true;
+        return shown.Any(s => $"{s.Name} {s.Loc} {s.Note}".Contains(q, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static IEnumerable<T> Sorted<T>(IEnumerable<T> rows, Func<T, Entry> entry, Func<T, int> level, string sort)
+        => sort switch
+        {
+            "no" => rows.OrderBy(r => entry(r).Id),
+            "no-desc" => rows.OrderByDescending(r => entry(r).Id),
+            "az" => rows.OrderBy(r => entry(r).Name, StringComparer.OrdinalIgnoreCase),
+            "za" => rows.OrderByDescending(r => entry(r).Name, StringComparer.OrdinalIgnoreCase),
+            _ => rows.OrderBy(level).ThenBy(r => entry(r).Id),
+        };
+
     public static string LevelText(Source s)
         => s.LvMax is int max && max != s.Lv ? $"Lv {s.Lv}-{max}" : $"Lv {s.Lv}";
 

@@ -14,6 +14,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework framework;
     private readonly IClientState clientState;
     private readonly IPluginLog log;
+    private readonly IChatGui chat;
     private readonly WindowSystem windows = new("Codex");
     private readonly MainWindow main;
 
@@ -26,7 +27,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState clientState,
                   IObjectTable objects, ICondition condition, IDataManager data, IGameGui gameGui, IChatGui chat, IPluginLog log)
     {
-        this.pi = pi; this.commands = commands; this.framework = framework; this.clientState = clientState; this.log = log;
+        this.pi = pi; this.commands = commands; this.framework = framework; this.clientState = clientState; this.log = log; this.chat = chat;
         Config = pi.GetPluginConfig() as Configuration ?? new Configuration();
         Data = CodexData.Load(pi, log);
         State = new CharacterState(pi, Game, log);
@@ -38,7 +39,7 @@ public sealed class Plugin : IDalamudPlugin
         pi.UiBuilder.OpenConfigUi += Open;
         framework.Update += Travel.OnUpdate;
         clientState.Logout += OnLogout;
-        commands.AddHandler(Command, new CommandInfo(OnCommand) { HelpMessage = "Open Codex. '/codex reload' re-reads the data file, '/codex stop' cancels a trip." });
+        commands.AddHandler(Command, new CommandInfo(OnCommand) { HelpMessage = "Open Codex. '/codex reload' re-reads the data file, '/codex stop' cancels a trip, '/codex import' applies state/import.json to this character." });
         log.Information("[Codex] Loaded");
     }
 
@@ -58,9 +59,32 @@ public sealed class Plugin : IDalamudPlugin
             case "stop":
                 Travel.Cancel();
                 break;
+            case "import":
+                Import();
+                break;
             default:
                 main.IsOpen = !main.IsOpen;
                 break;
+        }
+    }
+
+    private void Import()
+    {
+        var path = Path.Combine(pi.GetPluginConfigDirectory(), "state", "import.json");
+        if (!State.Ready) { chat.PrintError("[Codex] Log in first, then run /codex import."); return; }
+        if (!File.Exists(path)) { chat.PrintError("[Codex] Nothing to import: no state/import.json."); return; }
+        try
+        {
+            var ids = StateStore.Deserialize(File.ReadAllText(path));
+            var added = State.Import(ids);
+            File.Move(path, Path.ChangeExtension(path, ".done.json"), true);
+            chat.Print($"[Codex] Imported {added} beast tick(s) for this character; {ids.Count - added} were already ticked.");
+            log.Information($"[Codex] Import applied: {added} added of {ids.Count}");
+        }
+        catch (Exception e)
+        {
+            chat.PrintError($"[Codex] Import failed: {e.Message}");
+            log.Error($"[Codex] Import failed: {e}");
         }
     }
 

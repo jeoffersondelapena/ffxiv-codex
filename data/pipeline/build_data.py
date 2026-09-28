@@ -9,8 +9,8 @@ ICON_KIND={'Dungeon.png':'dungeon','Trials_icon1.png':'trial','Raid.png':'raid',
            'Daily_Quest_icon.png':'questmob','Quest_icon.png':'questmob','Feature_Quest_icon.png':'quest'}
 stages={v['name']:(int(k),v['level']) for k,v in json.load(open('carnivale_stages.json')).items()}
 # The wiki's note on totems: sold by Wayward Gaheel Ja in Ul'dah - Steps of Thal (12.5, 12.9). Lifestream reaches him via the
-# Steps of Nald aetheryte and the Sapphire Avenue Exchange shard.
-TOTEM_VENDOR=dict(loc="Ul'dah - Steps of Thal",xy="12.5, 12.9",tp="Ul'dah - Steps of Nald",aethernet="Sapphire Avenue Exchange")
+# Steps of Nald aetheryte and the Weavers' Guild shard, the user's pick for the nearest one.
+TOTEM_VENDOR=dict(loc="Ul'dah - Steps of Thal",xy="12.5, 12.9",tp="Ul'dah - Steps of Nald",aethernet="Weavers' Guild")
 elite=set(json.load(open('elite_marks.json')))
 def title_of(href): return urllib.parse.unquote(href.split('/wiki/',1)[1]).replace('_',' ')
 def slug(t): return re.sub(r'[^A-Za-z0-9._-]+','_',t)[:120]

@@ -19,6 +19,8 @@ public sealed class MainWindow : Window
     private readonly IChatGui chat;
     private readonly IPluginLog log;
     private readonly IDataManager data;
+    private readonly Dictionary<string, string> search = new();
+    private (int Id, string Name, bool Value)? pendingBeast;
 
     public MainWindow(Plugin plugin, IGameGui gameGui, IChatGui chat, IPluginLog log, IDataManager data) : base("Codex##main")
     {
@@ -63,6 +65,19 @@ public sealed class MainWindow : Window
             if (ImGui.SmallButton("Stop")) plugin.Travel.Cancel();
         }
         DrawMountPicker();
+        var query = search.GetValueOrDefault(list, "");
+        ImGui.SetNextItemWidth(260);
+        if (ImGui.InputTextWithHint("##search", "Search name, enemy or place", ref query, 128)) search[list] = query;
+        ImGui.SameLine();
+        ImGui.TextColored(Grey, "Sort:");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(200);
+        if (ImGui.BeginCombo("##sort", Kinds.Sorts.FirstOrDefault(s => s.Key == cfg.Sort).Label ?? "by level"))
+        {
+            foreach (var (key, label) in Kinds.Sorts)
+                if (ImGui.Selectable(label, cfg.Sort == key)) { cfg.Sort = key; plugin.SaveConfig(); }
+            ImGui.EndCombo();
+        }
         ImGui.TextColored(Grey, "Include:");
         var present = Kinds.PresentOptIn(entries);
         if (present.Count == 0) { ImGui.SameLine(); ImGui.TextColored(Grey, "nothing optional in this list"); }
@@ -92,7 +107,9 @@ public sealed class MainWindow : Window
                 if (levelById[e.Id] is not int lv) continue;
                 var inBand = band is (int lo, int hi) ? lv >= lo && lv <= hi : Kinds.BandOf(lv) == null;
                 if (!inBand) continue;
-                rows.Add((e, e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList(), doneById[e.Id], lv));
+                var shownSources = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
+                if (!Kinds.Matches(e, shownSources, query)) continue;
+                rows.Add((e, shownSources, doneById[e.Id], lv));
             }
             if (rows.Count == 0) continue;
             var done = rows.Count(r => r.Done);
@@ -103,13 +120,29 @@ public sealed class MainWindow : Window
             if (complete) ImGui.PopStyleColor();
             if (!open) continue;
             ImGui.Indent();
-            foreach (var (e, shown, isDone, lv) in rows.OrderBy(r => r.Lv).ThenBy(r => r.Entry.Id))
+            foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
             {
                 if (unobtainedOnly && isDone) continue;
                 DrawEntry(list, e, shown, isDone, lv);
             }
             ImGui.Unindent();
         }
+        DrawTickConfirmation();
+    }
+
+    // A tamed beast is ticked by hand, so a click asks first; the box shows the saved value until then.
+    private void DrawTickConfirmation()
+    {
+        if (pendingBeast == null) return;
+        var (id, name, value) = pendingBeast.Value;
+        if (!ImGui.IsPopupOpen("Codex##confirm")) ImGui.OpenPopup("Codex##confirm");
+        if (!ImGui.BeginPopupModal("Codex##confirm", ImGuiWindowFlags.AlwaysAutoResize)) return;
+        ImGui.Text(value ? $"Mark {name} as tamed?" : $"Remove the tick on {name}?");
+        ImGui.Spacing();
+        if (ImGui.Button("Yes", new Vector2(120, 0))) { plugin.State.SetBeast(id, value); pendingBeast = null; ImGui.CloseCurrentPopup(); }
+        ImGui.SameLine();
+        if (ImGui.Button("No", new Vector2(120, 0))) { pendingBeast = null; ImGui.CloseCurrentPopup(); }
+        ImGui.EndPopup();
     }
 
     private void DrawMountPicker()
@@ -140,7 +173,7 @@ public sealed class MainWindow : Window
         if (list == "bst")
         {
             var tick = done;
-            if (ImGui.Checkbox($"##done{e.Id}", ref tick)) plugin.State.SetBeast(e.Id, tick);
+            if (ImGui.Checkbox($"##done{e.Id}", ref tick)) pendingBeast = (e.Id, e.Name, tick);
         }
         else
         {
