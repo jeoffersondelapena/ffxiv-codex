@@ -98,7 +98,7 @@ public sealed class Travel
                 case Step.WaitingForNav:
                     if (navReady.InvokeFunc())
                     {
-                        var (x, z) = MapToWorld(target.Xy![0], target.Xy[1], target.Size, target.OffX, target.OffY);
+                        var (x, z) = MapMath.MapToWorld(target.Xy![0], target.Xy[1], target.Size, target.OffX, target.OffY);
                         var floor = pointOnFloor.InvokeFunc(new Vector3(x, 1024f, z), false, 5f);
                         if (floor == null) { Fail($"no walkable ground near ({target.Xy[0]}, {target.Xy[1]})"); break; }
                         if (moveTo.InvokeFunc(floor.Value, false)) { step = Step.Walking; Report($"walking to ({target.Xy[0]:0.0}, {target.Xy[1]:0.0})"); }
@@ -142,12 +142,4 @@ public sealed class Travel
         step = Step.Idle; Status = "";
     }
 
-    // map coordinates to world X/Z, the inverse of the game's map formula
-    public static (float X, float Z) MapToWorld(float mapX, float mapY, int sizeFactor, int offsetX, int offsetY)
-    {
-        var c = sizeFactor / 100f;
-        var x = ((mapX - 1f) * 2048f / (41f / c) - 1024f) / c - offsetX;
-        var z = ((mapY - 1f) * 2048f / (41f / c) - 1024f) / c - offsetY;
-        return (x, z);
-    }
 }

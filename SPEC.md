@@ -32,6 +32,7 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 7. With the travel toggle on and Lifestream + vnavmesh present, tapping teleports and walks; with vnavmesh building, it waits and reports; without them, it degrades to the flag with a log line.
 8. The repository contains no character data; per-character files are outside it; raw wiki caches are ignored.
 9. Build passes on this Mac; registered as a dev plugin; loads with no errors in Dalamud's log.
+10. `dotnet test Codex.Tests` passes; pure logic (Rules, MapMath, StateStore) stays free of Dalamud types so it remains testable.
 
 ## Status / next actions
 - 2026-09-28: repo created and pushed; pipeline moved in; codex-data.json built (124 spells with unlock links, 50 beasts, 42/56 zones mapped); plugin v0.1 builds (window, bands, filters, automatic spell checks, manual beast ticks, map flag, travel toggle with navmesh wait) and is registered as a dev plugin. Data file renamed codex-data.json because the manifest Codex.json collides on a case-insensitive disk. Next: in-game test against the acceptance criteria; then wire the weekly data refresh.

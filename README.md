@@ -17,6 +17,10 @@ python3 data/pipeline/run_all.py
 
 The wiki page caches under `data/pipeline/` are ignored by git; only the compact output is committed. Nothing about a character is ever in this repository: per-character files live in the plugin's own settings folder.
 
+## Tests
+
+`dotnet test Codex.Tests/Codex.Tests.csproj` runs the suite before every commit: the category rules (B-rank hunts always shown, instances opt-in), the level bands, the map-coordinate maths, and the per-character state file. The test project compiles the plugin's pure-logic files directly, because the plugin assembly cannot be referenced on a Mac.
+
 ## Build
 
 Same shape as Overlay Doctor: .NET 10 SDK, Dalamud dev assemblies at the XIV on Mac `dalamud/Hooks/dev` path, `dotnet build Codex/Codex.csproj -c Release`; the output in `out/` is loaded as a Dalamud dev plugin.

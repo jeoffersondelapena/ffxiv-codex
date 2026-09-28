@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text.Json;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 
@@ -29,10 +27,10 @@ public sealed class CharacterState
         Save();
         loadedFor = cid; beasts = new(); path = null;
         if (cid == 0) return;
-        path = Path.Combine(pi.GetPluginConfigDirectory(), "state", Key(cid) + ".json");
+        path = Path.Combine(pi.GetPluginConfigDirectory(), "state", StateStore.Key(cid) + ".json");
         if (File.Exists(path))
         {
-            try { beasts = new(JsonSerializer.Deserialize<StateFile>(File.ReadAllText(path))?.Beasts ?? new()); }
+            try { beasts = StateStore.Deserialize(File.ReadAllText(path)); }
             catch (Exception e) { log.Warning($"[Codex] State file could not be read, starting empty: {e.Message}"); }
         }
         log.Information($"[Codex] Character state loaded ({beasts.Count} beast(s) ticked)");
@@ -55,13 +53,8 @@ public sealed class CharacterState
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(new StateFile { Beasts = beasts.OrderBy(x => x).ToList() }));
+            File.WriteAllText(path, StateStore.Serialize(beasts));
         }
         catch (Exception e) { log.Error($"[Codex] State could not be saved: {e.Message}"); }
     }
-
-    private static string Key(ulong cid)
-        => Convert.ToHexString(SHA256.HashData(BitConverter.GetBytes(cid)))[..16].ToLowerInvariant();
-
-    private sealed class StateFile { public List<int> Beasts { get; set; } = new(); }
 }
