@@ -119,7 +119,7 @@ public sealed class MainWindow : Window
             if (!open) continue;
             ImGui.Indent();
             // fixed widths for the optional cells keep every band aligned; the source column takes the rest
-            if (ImGui.BeginTable($"rows##{key}", 12, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            if (ImGui.BeginTable($"rows##{key}", 11, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
             {
                 ImGui.TableSetupColumn("done", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("no", ImGuiTableColumnFlags.WidthFixed);
@@ -127,7 +127,6 @@ public sealed class MainWindow : Window
                 ImGui.TableSetupColumn("min", ImGuiTableColumnFlags.WidthFixed, 52);
                 ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 200);
                 ImGui.TableSetupColumn("rank", ImGuiTableColumnFlags.WidthFixed, 44);
-                ImGui.TableSetupColumn("quest", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("npc", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("enemy", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("wiki", ImGuiTableColumnFlags.WidthFixed);
@@ -199,13 +198,6 @@ public sealed class MainWindow : Window
         }
         // one button per place a row can point at, greyed with the reason when there is none
         var id = $"{list}{e.Id}";
-        var locked = plugin.Game.LockedBy(data, best);
-        var leveLock = best.Via != null ? plugin.Game.LeveLockedBy(data, best.Via.Npc) : null;
-        var gate = locked != null ? best.UnlockVia : leveLock != null ? best.Via : null;
-        var gateQuest = locked ?? leveLock;
-        RowButton("Quest", id, gate is { HasMapPosition: true },
-            gateQuest != null ? $"'{gateQuest.Name}' (level {gateQuest.Level}) must be done first" + (gate is { HasMapPosition: true } ? $": flag {gate.Name} — {gate.Loc} {Coords(gate)}" : "; its giver has no map position") : "No quest stands in the way",
-            () => Flag(e, gate!));
         var npc = Kinds.NpcStop(best);
         var role = npc == null ? "" : ReferenceEquals(npc, best.Via) ? (best.Leve != null ? $", the levemete for '{best.Leve}'" : npc.Quest != null ? $", who gives '{npc.Quest}'" : "") : $", {Kinds.SourceLabel(best).ToLowerInvariant()}";
         RowButton("NPC", id, npc != null, npc != null ? $"Flag {npc.Name} — {npc.Loc} {Coords(npc)}{role}" : "No one to see first: go straight to the enemy", () => Flag(e, npc!));
@@ -228,7 +220,7 @@ public sealed class MainWindow : Window
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nQuest: flag the unlock quest's giver. NPC: whom to see first. Enemy: where it appears. Wiki and Copy: the page");
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nNPC: whom to see first. Enemy: where it appears. Wiki and Copy: the page");
         }
     }
 
