@@ -53,6 +53,7 @@ public sealed unsafe class Travel
     private Vector3 floor;
     private Vector3? lastPos;
     private DateTime lastMoved;
+    private bool walkRetried;
     private DateTime since;
     private DateTime lastReport;
     private DateTime lastAction;
@@ -331,6 +332,8 @@ public sealed unsafe class Travel
                     if (pos != null && (lastPos == null || Vector3.Distance(pos.Value, lastPos.Value) > 0.5f)) { lastPos = pos; lastMoved = DateTime.Now; }
                     if (close || (!active && Elapsed() > 3))
                     {
+                        // right after an aethernet ride the first path request can fizzle before the zone has settled; one more try
+                        if (!close && !walkRetried) { walkRetried = true; since = DateTime.Now; log.Information("[Codex] Travel: the path did not start; asking again"); moveTo.InvokeFunc(floor, Mounted && FlyingUnlocked()); break; }
                         if (!close) { Fail($"no path reached {target.Name}; stopped {away:0} yalms away, the flag is on the map"); break; }
                         if (Mounted) { lastAction = DateTime.MinValue; Enter(Step.Dismounting, "dismounting"); }
                         else Finish();
@@ -370,7 +373,7 @@ public sealed unsafe class Travel
 
     private void StartWalk()
     {
-        lastPos = null; lastMoved = DateTime.Now;
+        lastPos = null; lastMoved = DateTime.Now; walkRetried = false;
         var fly = Mounted && FlyingUnlocked();
         var how = fly ? "flying" : Mounted ? "riding" : "walking";
         if (moveTo.InvokeFunc(floor, fly)) Enter(Step.Walking, $"{how} to ({target!.Xy![0]:0.0}, {target.Xy[1]:0.0})");

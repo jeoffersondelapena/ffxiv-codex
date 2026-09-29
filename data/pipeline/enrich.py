@@ -127,6 +127,56 @@ def quest_stops(data, cache):
                         s["unlockVia"] = dict(giver)
 
 
+def page_text(path):
+    html = open(path, encoding="utf-8", errors="replace").read()
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+
+
+def leve_only_targets(data):
+    """A Locations row for a mob that exists only inside a levequest reads like an open-world spawn (Arch Demon for
+    Abyssal Transfixion). When the page's Levequests section names that mob and no enemy page shows a spawn for it,
+    the source becomes the leve, with its levemete first."""
+    import glob
+    leves = {}
+    for f in glob.glob("places/*.json"):
+        wt = json.load(open(f)).get("wikitext", "")
+        if "Levequest infobox" not in wt and "| type = Levequest" not in wt:
+            continue
+        title = json.load(open(f)).get("title") or os.path.basename(f)[:-5].replace("_", " ")
+        field = lambda k: (re.search(r"\|\s*" + k + r"\s*=\s*([^\n|]*)", wt) or [None, ""])[1].strip()
+        if field("quest-giver"):
+            leves[title.replace("(L)", "").strip().lower()] = (title, field("quest-giver"), field("location"), field("location-x"), field("location-y"))
+    changed = []
+    for e in data["blu"]:
+        path = os.path.join("pages/spells", e["name"].replace(" ", "_").replace("/", "_") + ".html")
+        if not os.path.exists(path):
+            continue
+        text = page_text(path)
+        i = text.find(" Levequests ")
+        if i < 0:
+            continue
+        section = text[i:i + 1500]
+        for m in re.finditer(r"([A-Z][^()]*?)(?: \(L\))? \(Lv\. (\d+)\), obtained in ([^-]+?) - ([A-Z][A-Za-z' -]+?)(?= [A-Z][a-z]+:| Tips| For |$)", section):
+            leve, lv, zone, mob = m.group(1).strip(), int(m.group(2)), m.group(3).strip(), m.group(4).strip()
+            # the first match starts right after the section heading
+            leve = re.sub(r"^Levequests\s+", "", leve)
+            key = leve.lower()
+            for s in e["sources"]:
+                if s["k"] != "world" or s["name"] != mob or s.get("via"):
+                    continue
+                if glob.glob("enemies/" + mob.replace(" ", "_") + "*.html"):
+                    continue
+                info = leves.get(key)
+                s["k"] = "leve"
+                s["leve"] = leve
+                s["note"] = "levequest: " + leve
+                s["lv"] = lv
+                if info:
+                    s["via"] = {"name": info[1], "loc": info[2] or zone, "xy": [float(info[3] or 0), float(info[4] or 0)]}
+                changed.append((e["name"], mob, leve, info[1] if info else None))
+    return changed
+
+
 def reshape(data, costs):
     """Wiki columns that name a thing rather than a place: every gourd is sold by one merchant, every Carnivale stage is
     entered through one attendant, every totem comes from one vendor. Each gets the NPC to stand at and the quest that opens it."""
@@ -188,6 +238,8 @@ def main():
     os.makedirs("gamedata", exist_ok=True)
     npcs = json.load(open(NPC_CACHE)) if os.path.exists(NPC_CACHE) else {}
     reshape(data, gourd_costs())
+    for name, mob, leve, giver in leve_only_targets(data):
+        print(f"leve-only target: {name}: {mob} -> '{leve}' via {giver}")
     wiki_links(data)
     givers = json.load(open(QUEST_CACHE)) if os.path.exists(QUEST_CACHE) else {}
     quest_stops(data, givers)
