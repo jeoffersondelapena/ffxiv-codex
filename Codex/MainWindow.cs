@@ -213,7 +213,10 @@ public sealed class MainWindow : Window
         RowButton("Enemy", id, enemy != null, enemy != null ? $"Flag {enemy.Name} — {enemy.Loc} {Coords(enemy)}" + (best.Via != null ? " (after the NPC)" : "") : Kinds.NoEnemy(best), () => Flag(e, enemy!));
         RowButton("Wiki", id, e.Wiki != null, e.Wiki != null ? "Open the wiki page in the browser" : "No wiki page known", () => OpenWiki(e));
         RowButton("Copy", id, e.Wiki != null, e.Wiki != null ? "Copy the wiki link" : "No wiki page known", () => { ImGui.SetClipboardText(e.Wiki!); chat.Print($"[Codex] Link copied: {e.Wiki}"); });
-        if (nameHovered)
+        ImGui.TableNextColumn();
+        ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
+        // the tooltip belongs to the name and to the source text alike
+        if (nameHovered || ImGui.IsItemHovered())
         {
             var enabledKinds = plugin.Config.KindsFor(list);
             var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
@@ -227,8 +230,6 @@ public sealed class MainWindow : Window
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nQuest: flag the unlock quest's giver. NPC: whom to see first. Enemy: where it appears. Wiki and Copy: the page");
         }
-        ImGui.TableNextColumn();
-        ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
     }
 
     private bool IsDone(string list, Entry e)
