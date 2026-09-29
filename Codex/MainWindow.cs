@@ -53,10 +53,6 @@ public sealed class MainWindow : Window
         var enabled = cfg.KindsFor(list);
         var unobtainedOnly = cfg.UnobtainedOnly.GetValueOrDefault(list);
         if (ImGui.Checkbox("Unobtained Only", ref unobtainedOnly)) { cfg.UnobtainedOnly[list] = unobtainedOnly; plugin.SaveConfig(); }
-        ImGui.SameLine();
-        var travel = cfg.Travel;
-        if (ImGui.Checkbox("Travel On Tap", ref travel)) { cfg.Travel = travel; plugin.SaveConfig(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Tapping an entry also teleports there with Lifestream and walks with vnavmesh. Off: the map flag only.");
         if (plugin.Travel.Active)
         {
             ImGui.SameLine();
@@ -100,8 +96,7 @@ public sealed class MainWindow : Window
 
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
-        Func<Source, bool> locked = s => plugin.Game.LockedBy(data, s) != null;
-        var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable, locked));
+        var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable));
         var hidden = levelById.Count(kv => kv.Value == null);
         var obtained = doneById.Count(kv => kv.Value);
         var summary = Progress.Summary(obtained, entries.Count, hidden);
@@ -188,7 +183,7 @@ public sealed class MainWindow : Window
                 if (ImGui.Selectable(name, cfg.MountId == id)) { cfg.MountId = id; plugin.SaveConfig(); }
             ImGui.EndCombo();
         }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Travel On Tap mounts up for the longer stretches and flies where the zone allows it.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Go mounts up for the longer stretches and flies where the zone allows it.");
     }
 
     private string MountName(uint id)
@@ -224,8 +219,7 @@ public sealed class MainWindow : Window
         }
         ImGui.TableNextColumn();
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
-        Func<Source, bool> locked = s => plugin.Game.LockedBy(data, s) != null;
-        var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable, locked) ?? shown[0];
+        var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}"))
             Tap(list, e, best);
         // read before the stars draw, or they take the hover and the name shows nothing
@@ -261,7 +255,7 @@ public sealed class MainWindow : Window
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap the name: map flag. Go: travel there");
         }
         ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
@@ -270,13 +264,7 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
-    private void Tap(string list, Entry e, Source tappedSource)
-    {
-        Flag(e, plugin.Travel.PlannedStop(tappedSource));
-        if (!plugin.Config.Travel) return;
-        EnsureJob(list);
-        plugin.Travel.Go(tappedSource, e.Name);
-    }
+    private void Tap(string list, Entry e, Source tappedSource) => Flag(e, plugin.Travel.PlannedStop(tappedSource));
 
     private void Flag(Entry e, Source s)
     {

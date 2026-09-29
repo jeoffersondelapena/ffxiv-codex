@@ -5,7 +5,7 @@ A private Dalamud plugin for FFXIV: which Blue Mage spell or Beastmaster beast t
 - `/codex` opens the window: the Blue Magic Spellbook and the Master's Bestiary grouped by level band (1-15, 16-30, then tens), lowest level first, each entry with its level and a check mark. Learned spells are read from the game; beasts are ticked by hand and remembered per character.
 - "Unobtained Only" hides what is done. Open-world, FATE, levequest, quest, totem, Masked Carnivale and B-rank hunt sources are always shown; A/S-rank hunts, wanted targets, treasure maps, dungeons, trials, raids, guildhests and treasure dungeons are opt-in per list. Which source a row shows, and why, is the "Source order" section of `SPEC.md`.
 - A band shows "Complete" when everything shown in it is done.
-- Tapping an entry flags its source on the map. With "Travel On Tap" on, it also switches to the list's job, teleports there through Lifestream and walks there through vnavmesh, waiting for the navmesh first. Each row also has Map and Go buttons, greyed with the reason when they cannot work. A source behind a quest (a Carnivale stage, a gourd, a quest enemy not yet taken) sends you to the quest giver instead and says why.
+- Tapping an entry flags its source on the map. Each row's Go button switches to the list's job, teleports there through Lifestream and walks there through vnavmesh, waiting for the navmesh first; Map and Go are greyed with the reason when they cannot work. A source behind a quest (a Carnivale stage, a gourd, a quest enemy not yet taken) sends you to the quest giver instead and says why.
 
 ## Data
 

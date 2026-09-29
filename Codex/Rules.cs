@@ -58,12 +58,9 @@ public static class Kinds
     }
 
     // The source that drives a row: first kind in the order with a visible, still usable source, lowest level within it.
-    // A locked source stays the plan, but not while an open one exists.
-    public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null, Func<Source, bool>? locked = null)
-    {
-        var pool = e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).ToList();
-        return pool.FirstOrDefault(s => locked == null || !locked(s)) ?? pool.FirstOrDefault();
-    }
+    // A locked source keeps its place: the plan is the same, the unlock quest just comes first.
+    public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null)
+        => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
 
     // what an unlock quest opens, for the trip's wording
     public static string Opens(Source s) => s.K switch
@@ -123,7 +120,7 @@ public static class Kinds
         return OptIn.Where(o => present.Contains(o.Key)).OrderBy(o => Rank(o.Key)).ToList();
     }
 
-    public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null, Func<Source, bool>? locked = null) => Driver(e, enabled, usable, locked)?.Lv;
+    public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null) => Driver(e, enabled, usable)?.Lv;
 
     public static string Label(string kind)
     {
