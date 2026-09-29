@@ -125,4 +125,17 @@ public class RulesTests
         Assert.Contains("levemete", Kinds.Hint("leve"));
         Assert.Equal("", Kinds.Hint("unknown"));
     }
+
+    [Fact]
+    public void A_leve_goes_to_its_levemete_first_and_to_the_enemy_on_the_next_tap()
+    {
+        var via = new Source { K = "leve", Name = "Kikiri", Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
+        var leve = new Source { K = "leve", Name = "Battle Drake", Leve = "A Cold-blooded Business", Via = via, Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
+        Assert.Same(via, Kinds.NextStop(leve, null));
+        Assert.Same(leve, Kinds.NextStop(leve, leve));
+        var plain = new Source { K = "world", Name = "Sundrake" };
+        Assert.Same(plain, Kinds.NextStop(plain, null));
+        var unplaced = new Source { K = "leve", Name = "Angry Sow", Via = new Source { Name = "somebody" } };
+        Assert.Same(unplaced, Kinds.NextStop(unplaced, null));
+    }
 }

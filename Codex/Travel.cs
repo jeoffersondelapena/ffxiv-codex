@@ -38,6 +38,8 @@ public sealed class Travel
     private Step step = Step.Idle;
     private Step afterSend = Step.Idle;
     private Source? target;
+    private Source? tapped;
+    private Source? levemeteVisited;
     private string targetName = "";
     private string? pending;
     private bool zoneOnly;
@@ -66,9 +68,13 @@ public sealed class Travel
     public bool Active => step != Step.Idle;
     public string Status { get; private set; } = "";
 
+    public Source NextStop(Source source) => Kinds.NextStop(source, levemeteVisited);
+
     public void Go(Source source, string entryName)
     {
         Cancel();
+        tapped = source;
+        source = NextStop(source);
         target = source; targetName = entryName; lastReport = DateTime.MinValue;
         zoneOnly = !source.HasMapPosition;
         if (zoneOnly && string.IsNullOrEmpty(source.Loc))
@@ -84,7 +90,8 @@ public sealed class Travel
         }
         var where = source.Tp ?? source.Loc!;
         chat.Print(zoneOnly ? $"[Codex] {entryName}: heading to {source.Loc}, where {source.Name} roams."
-                            : $"[Codex] {entryName}: heading to {source.Name} in {source.Loc}.");
+                 : ReferenceEquals(source, tapped!.Via) ? $"[Codex] {entryName}: heading to {source.Name}, the levemete, in {source.Loc} for '{tapped.Leve}'."
+                 : $"[Codex] {entryName}: heading to {source.Name} in {source.Loc}.");
         Queue($"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
@@ -239,6 +246,12 @@ public sealed class Travel
 
     private void Finish(string text)
     {
+        if (tapped != null && ReferenceEquals(target, tapped.Via))
+        {
+            levemeteVisited = tapped;
+            text += $". Accept '{tapped.Leve}' from {target!.Name}, then tap {targetName} again for the enemy";
+        }
+        else levemeteVisited = null;
         chat.Print($"[Codex] {text}.");
         log.Information($"[Codex] Travel done: {text}");
         step = Step.Idle; Status = ""; target = null;

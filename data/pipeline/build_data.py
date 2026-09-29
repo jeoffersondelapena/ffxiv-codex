@@ -60,7 +60,8 @@ def load_places():
         ib=infobox(wt,'Quest infobox')
         if ib:
             ty=field(ib,'type').lower()
-            place[t]=dict(kind=('leve' if 'leve' in ty else 'questmob'),zone=field(ib,'location'),level=lv_parse(field(ib,'level'))[0]); continue
+            place[t]=dict(kind=('leve' if 'leve' in ty else 'questmob'),zone=field(ib,'location'),level=lv_parse(field(ib,'level'))[0],
+                          giver=field(ib,'quest-giver'),gxy=norm_xy(f"{field(ib,'location-x')}, {field(ib,'location-y')}")); continue
     for n in stages: place.setdefault(n,dict(kind='carnivale',level=stages[n][1],stage=stages[n][0]))
     for z in OPEN_WORLD_ZONES:
         ZONES.add(z); place[z]=dict(kind='zone')
@@ -156,6 +157,9 @@ def enemy_sources(title, fallback=None):
         key=(k,loc)
         if key not in byplace:
             byplace[key]=dict(k=k,name=display,t=title,img=e.get('img'),loc=loc,xy=norm_xy(xy),lv=lvv,lvMax=lvmax,note=note,rank=rank if k=='hunt' else None,spots=1)
+            # a leve is accepted from its levemete: the leve page's giver and coordinates are the first stop
+            if k=='leve' and pinfo.get('giver') and pinfo.get('gxy'):
+                byplace[key]['leve']=pname; byplace[key]['via']=dict(name=pinfo['giver'],loc=pinfo.get('zone') or loc,xy=pinfo['gxy'])
         else:
             b=byplace[key]; b['spots']+=1
             if lvv<b['lv']: b['lv']=lvv; b['xy']=norm_xy(xy) or b['xy']
@@ -176,6 +180,18 @@ def enemy_sources(title, fallback=None):
         if b.pop('spots')>1 and b['k']=='world': b['note']='several spots'
         out.append(b)
     for x in out: x['img']=None if x['k']=='map' else enemy_image(title, x['loc'])
+    # wanted targets spawn during any leve of one level from one levemete; the page names the levemete, not a leve
+    lm=re.search(r'levemete(?:\]\])?\s*\[\[([^\]|]+)',wt,re.I); ll=re.search(r'Level (\d+)\s*\[\[Battlecraft',wt)
+    named=[n.strip() for sent in re.findall(r'[^.\n]*leve[^.\n]*',wt,re.I) for n in re.findall(r'\{\{i\|([^}|]+)',sent)]
+    for x in out:
+        if x['k']!='leve' or x.get('via'): continue
+        known=[n for n in named if place.get(n,{}).get('kind')=='leve' and place[n].get('giver') and place[n].get('gxy')]
+        if known:
+            pi=place[known[0]]
+            x['leve']=known[0]; x['via']=dict(name=pi['giver'],loc=pi.get('zone') or x['loc'],xy=pi['gxy']); x['note']='levequest: '+' · '.join(dict.fromkeys(named))
+        elif lm:
+            x['via']=dict(name=lm.group(1).strip(),loc=x['loc'],xy=None)
+            x['note']=('wanted target during level %s leves from %s'%(ll.group(1),lm.group(1).strip())) if ll else ('wanted target, leves from '+lm.group(1).strip())
     return out
 
 def finish(entry):
@@ -339,6 +355,8 @@ def build_bst():
                         print('BST UNKNOWN ROW',name,mob,lv,po,loc,icons); continue
                     if lv is None: print('BST NO LEVEL',name,mob); continue
                     entry['sources'].append(dict(k=k,name=mob,t=mtitle,img=(None if k=='map' else enemy_image(mtitle, plc or '')),loc=plc,xy=xy if k in ('world','fate','leve','questmob') else None,lv=lv,lvMax=lvmax,note=note,rank=rank,rec=(mob==hinted)))
+                    if k=='leve' and pinfo and pinfo.get('giver') and pinfo.get('gxy'):
+                        entry['sources'][-1].update(leve=po,via=dict(name=pinfo['giver'],loc=pinfo.get('zone') or plc,xy=pinfo['gxy']))
         else: print('NO BEAST PAGE',name)
         if gtxt and gtxt!='—':
             m=re.search(r'requires level (\d+) quest (.+)$',gtxt)

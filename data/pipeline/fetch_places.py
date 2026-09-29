@@ -17,6 +17,9 @@ for f in glob.glob('enemies/*.json'):
         for line in m.group(1).split('\n'):
             mm=re.match(r'\s*\|\s*(dungeon|raid|trial|other-duty|location|goal)\s*=\s*(.+)$', line)
             if mm and mm.group(2).strip(): names.add(mm.group(2).strip())
+    # leves named in prose ("only appears during the levequest {{i|Reeking Havoc}}"): their pages hold the levemete
+    for sent in re.findall(r'[^.\n]*leve[^.\n]*', wt, re.I):
+        for nm in re.findall(r'\{\{i\|([^}|]+)', sent): names.add(nm.strip())
 s=BeautifulSoup(open('blu.html').read(),'html.parser')
 for r in s.select('table')[0].select('tr')[1:]:
     for a in r.select('td')[7].select('a[href^="/wiki/"]'): names.add(title_of(a['href']))

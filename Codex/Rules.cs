@@ -20,6 +20,8 @@ public sealed class Source
 
     public string? Tp { get; set; }
     public string? Aethernet { get; set; }
+    public string? Leve { get; set; }
+    public Source? Via { get; set; }
 
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }
@@ -124,6 +126,10 @@ public static class Kinds
         "default" => "Known from the start",
         _ => "",
     };
+
+    // A leve is accepted from its levemete first; the second tap on the same source goes to the enemy.
+    public static Source NextStop(Source s, Source? levemeteVisited)
+        => s.Via is { HasMapPosition: true } && !ReferenceEquals(levemeteVisited, s) ? s.Via : s;
 
     public static string SourceLabel(Source s)
         => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);

@@ -41,23 +41,63 @@ def zone_lookup(name):
     f = res[0]["fields"]; m = f["Map"]
     return {"terr": res[0]["row_id"], "map": m["row_id"], "size": m["fields"].get("SizeFactor", 100), "offX": m["fields"].get("OffsetX", 0), "offY": m["fields"].get("OffsetY", 0)}
 
+NPC_CACHE = os.path.join("gamedata", "npc_positions.json")
+
+
+def world_to_map(v, size, off):
+    c = size / 100.0
+    return round(41.0 / c * ((v + off) * c + 1024.0) / 2048.0 + 1.0, 1)
+
+
+def npc_position(name, zone, cache):
+    """Map spot of a named NPC in a zone, from the ENpcResident and Level sheets; None when the data has no such NPC there."""
+    key = f"{name}|{zone}"
+    if key in cache:
+        return cache[key]
+    found = None
+    q = urllib.parse.quote(f'Singular="{name}"')
+    for npc in get(f"search?sheets=ENpcResident&query={q}&limit=20&fields=Singular").get("results", []):
+        q2 = urllib.parse.quote(f"Object={npc['row_id']}")
+        for row in get(f"search?sheets=Level&query={q2}&limit=5&fields=X,Z,Territory.PlaceName.Name,Map.SizeFactor,Map.OffsetX,Map.OffsetY").get("results", []):
+            f = row["fields"]
+            terr = f.get("Territory") or {}
+            if (terr.get("fields") or {}).get("PlaceName", {}).get("fields", {}).get("Name") != zone:
+                continue
+            m = (f.get("Map") or {}).get("fields") or {}
+            size, offx, offy = m.get("SizeFactor", 100), m.get("OffsetX", 0), m.get("OffsetY", 0)
+            found = {"xy": [world_to_map(f["X"], size, offx), world_to_map(f["Z"], size, offy)], "terr": terr["row_id"], "map": f["Map"]["row_id"],
+                     "size": size, "offX": offx, "offY": offy}
+            break
+        if found:
+            break
+    cache[key] = found
+    return found
+
+
 def main():
     data = json.load(open("data.json"))
     links = spell_unlock_links()
     zones, missing = {}, set()
+    os.makedirs("gamedata", exist_ok=True)
+    npcs = json.load(open(NPC_CACHE)) if os.path.exists(NPC_CACHE) else {}
     for kind in ("blu", "bst"):
         for e in data[kind]:
             if kind == "blu":
                 e.update(links.get(e["id"], {}))
             for s in e["sources"]:
-                xy = s.get("xy")
-                if isinstance(xy, str):
-                    m = re.match(r"\s*([\d.]+)\s*,\s*([\d.]+)", xy); s["xy"] = [float(m.group(1)), float(m.group(2))] if m else None
-                loc = s.get("loc")
-                if s.get("xy") and loc:
-                    if loc not in zones: zones[loc] = zone_lookup(loc)
-                    if zones[loc]: s.update(zones[loc])
-                    else: missing.add(loc)
+                for spot in [s] + ([s["via"]] if s.get("via") else []):
+                    xy = spot.get("xy")
+                    if isinstance(xy, str):
+                        m = re.match(r"\s*([\d.]+)\s*,\s*([\d.]+)", xy); spot["xy"] = [float(m.group(1)), float(m.group(2))] if m else None
+                    loc = spot.get("loc")
+                    if spot.get("xy") and loc:
+                        if loc not in zones: zones[loc] = zone_lookup(loc)
+                        if zones[loc]: spot.update(zones[loc])
+                        else: missing.add(loc)
+                    if spot is not s and not spot.get("xy") and spot.get("name") and spot.get("loc"):
+                        pos = npc_position(spot["name"], spot["loc"], npcs)
+                        if pos: spot.update(pos)
+    json.dump(npcs, open(NPC_CACHE, "w"), indent=1)
     out = {"schema": 1, "built": __import__("datetime").date.today().isoformat(), "source": "ffxiv.consolegameswiki.com + XIVAPI", "blu": data["blu"], "bst": data["bst"]}
     json.dump(out, open("../codex-data.json", "w"), ensure_ascii=False, separators=(",", ":"))
     print(f"codex-data.json: {len(out['blu'])} spells ({sum(1 for e in out['blu'] if e.get('unlockLink'))} with unlock links), {len(out['bst'])} beasts, zones resolved {sum(1 for z in zones.values() if z)}/{len(zones)}; unresolved: {sorted(missing)[:8]}")

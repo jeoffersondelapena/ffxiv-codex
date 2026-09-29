@@ -208,7 +208,8 @@ public sealed class MainWindow : Window
         if (ImGui.IsItemHovered())
         {
             var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
-                + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : ""));
+                + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "")
+                + (s.Via != null ? $"\n    levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
             var hints = shown.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct();
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
@@ -219,8 +220,9 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
-    private void Tap(Entry e, Source s)
+    private void Tap(Entry e, Source tappedSource)
     {
+        var s = plugin.Travel.NextStop(tappedSource);
         if (s.HasMapPosition)
         {
             var ok = gameGui.OpenMapWithMapLink(new MapLinkPayload(s.Terr, s.Map, s.Xy![0], s.Xy[1], 0f));
@@ -231,6 +233,6 @@ public sealed class MainWindow : Window
             chat.Print($"[Codex] {e.Name}: {Kinds.SourceLabel(s)} — {s.Name}" + (s.Loc != null ? $" in {s.Loc}" : "") + " (no map position).");
             log.Information($"[Codex] Tap on {e.Name}: no map position for {s.Name} ({s.K})");
         }
-        if (plugin.Config.Travel) plugin.Travel.Go(s, e.Name);
+        if (plugin.Config.Travel) plugin.Travel.Go(tappedSource, e.Name);
     }
 }
