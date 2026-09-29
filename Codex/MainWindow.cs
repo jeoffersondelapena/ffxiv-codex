@@ -176,12 +176,12 @@ public sealed class MainWindow : Window
     private void DrawEntry(string list, Entry e, List<Source> shown, bool done, int lv)
     {
         ImGui.TableNextRow();
-        // these bindings have no hovered-row query; the row's own rectangle stands in
+        ImGui.TableNextColumn();
+        // these bindings have no hovered-row query; the row's own rectangle stands in, measured once the first cell is placed
         var rowTop = ImGui.GetCursorScreenPos().Y;
         var left = ImGui.GetWindowPos().X;
         if (ImGui.IsMouseHoveringRect(new Vector2(left, rowTop), new Vector2(left + ImGui.GetWindowSize().X, rowTop + ImGui.GetFrameHeight())))
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(ImGuiCol.HeaderHovered));
-        ImGui.TableNextColumn();
         if (list == "bst")
         {
             var tick = done;
@@ -212,7 +212,7 @@ public sealed class MainWindow : Window
         if (e.Rank is > 0 and <= 5)
         {
             ImGui.TextColored(Amber, new string('*', e.Rank.Value));
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank}");
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank} of 5: how hard the spell is to learn from a kill; one star is the easiest, five the hardest. Inside a level-synced duty the learn is guaranteed whatever the rank.");
         }
         // one button per place a row can point at, greyed with the reason when there is none
         var id = $"{list}{e.Id}";
@@ -252,19 +252,7 @@ public sealed class MainWindow : Window
     private void Visit(string list, Entry e, Source stop)
     {
         Flag(e, stop);
-        if (!plugin.Config.AutoTravel) return;
-        EnsureJob(list);
-        plugin.Travel.Go(stop, e.Name);
-    }
-
-    private void EnsureJob(string list)
-    {
-        var (job, name) = list == "bst" ? ((byte)43, "Beastmaster") : ((byte)36, "Blue Mage");
-        if (plugin.Game.CurrentJob == job) return;
-        var done = plugin.Game.EquipJob(job, log);
-        chat.Print(done == null ? $"[Codex] No gearset saved for {name}; save one and press again."
-                 : done.Value.Equipped ? $"[Codex] Switched to {name} (gearset '{done.Value.Name}')."
-                 : $"[Codex] The game refused gearset '{done.Value.Name}' for {name} right now.");
+        if (plugin.Config.AutoTravel) plugin.Travel.Go(stop, e.Name, list == "bst" ? (byte)43 : (byte)36);
     }
 
     private void DrawMountPicker()

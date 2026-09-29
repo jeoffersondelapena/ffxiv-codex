@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Ipc.Exceptions;
@@ -13,7 +14,7 @@ namespace Codex;
 // Telepo teleports; Lifestream only rides a city aethernet (its own teleport form never resolved a shard); vnavmesh walks.
 public sealed unsafe class Travel
 {
-    private enum Step { Idle, Teleporting, AtAetheryte, Aethernet, WaitingForNav, Mounting, Walking, Dismounting }
+    private enum Step { Idle, ChangingJob, Teleporting, AtAetheryte, Aethernet, WaitingForNav, Mounting, Walking, Dismounting }
 
     private const uint MountRoulette = 9;
     private const uint DismountAction = 23;
@@ -43,6 +44,7 @@ public sealed unsafe class Travel
     private Step step = Step.Idle;
     private Source? target;
     private string targetName = "";
+    private byte wantedJob;
     private uint teleportAetheryte;
     private uint teleportTerritory;
     private Vector3 aetherytePos;
@@ -170,12 +172,29 @@ public sealed unsafe class Travel
         return new Vector3(x, 0, z);
     }
 
-    public void Go(Source stop, string entryName)
+    private static string JobName(byte job) => job == 43 ? "Beastmaster" : "Blue Mage";
+
+    public void Go(Source stop, string entryName, byte job)
     {
         Cancel();
         var (ok, why) = CanGo(stop);
         if (!ok) { chat.Print($"[Codex] {entryName}: {why}; the flag is on the map."); return; }
-        target = stop; targetName = entryName; lastReport = DateTime.MinValue;
+        target = stop; targetName = entryName; lastReport = DateTime.MinValue; wantedJob = job;
+        // a teleport cast right after a gearset request loses one of the two; the trip waits for the job to change
+        if (game.CurrentJob != job)
+        {
+            var done = game.EquipJob(job, log);
+            if (done == null) chat.Print($"[Codex] No gearset saved for {JobName(job)}; going as is.");
+            else if (!done.Value.Equipped) chat.Print($"[Codex] The game refused gearset '{done.Value.Name}'; going as is.");
+            else { Enter(Step.ChangingJob, $"switching to {JobName(job)} (gearset '{done.Value.Name}')"); return; }
+        }
+        Depart();
+    }
+
+    private void Depart()
+    {
+        var stop = target!;
+        var entryName = targetName;
         if (clientState.TerritoryType == stop.Terr)
         {
             chat.Print($"[Codex] {entryName}: heading to {stop.Name}, already in {stop.Loc}.");
@@ -206,6 +225,10 @@ public sealed unsafe class Travel
         {
             switch (step)
             {
+                case Step.ChangingJob:
+                    if (game.CurrentJob == wantedJob) { chat.Print($"[Codex] Switched to {JobName(wantedJob)}."); Depart(); }
+                    else if (Elapsed() > 5) { chat.Print($"[Codex] The gearset did not change the job (is the soul crystal in it?); going as is."); Depart(); }
+                    break;
                 case Step.Teleporting:
                     if (clientState.TerritoryType == teleportTerritory && Elapsed() > 3 && !condition[ConditionFlag.BetweenAreas] && !condition[ConditionFlag.BetweenAreas51])
                     {
@@ -217,8 +240,9 @@ public sealed unsafe class Travel
                     break;
                 case Step.AtAetheryte:
                     // Lifestream only rides from an aetheryte it sees as active, which takes standing next to it
-                    if (lsActive.InvokeFunc() == teleportAetheryte)
+                    if (lsActive.InvokeFunc() != 0)
                     {
+                        if (approached && pathRunning.InvokeFunc()) { try { stop.InvokeAction(); } catch (IpcNotReadyError) { } }
                         if ((DateTime.Now - lastAction).TotalSeconds < 2) break;
                         lastAction = DateTime.Now;
                         if (lsAethernet.InvokeFunc(shard!)) Enter(Step.Aethernet, $"riding the aethernet to {shard}");
@@ -227,9 +251,12 @@ public sealed unsafe class Travel
                     else if (!approached && Elapsed() > 5 && navReady.InvokeFunc())
                     {
                         approached = true;
-                        var spot = nearestPoint.InvokeFunc(aetherytePos, 5f, 5f) ?? aetherytePos;
+                        // the aetheryte's own object is the one sure position; the table's placement rows are empty for many
+                        var obj = objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.Aetheryte && o.DataId == teleportAetheryte);
+                        var at = obj?.Position ?? aetherytePos;
+                        var spot = nearestPoint.InvokeFunc(at, 5f, 5f) ?? at;
                         moveTo.InvokeFunc(spot, false);
-                        Report("walking up to the aetheryte");
+                        Report("walking up to the aetheryte" + (obj == null ? " (its object was not in view; using the table)" : ""));
                     }
                     else if (Elapsed() > 60) Fail("Lifestream never saw the aetheryte as active");
                     break;
