@@ -41,9 +41,6 @@ public sealed class Travel
     private Step afterSend = Step.Idle;
     private Source? target;
     private Source? tapped;
-    private (Source Source, string Entry)? awaitingLeve;
-    private bool leveWasLocked;
-    private DateTime lastLevePoll;
     private string targetName = "";
     private string? pending;
     private bool zoneOnly;
@@ -170,11 +167,8 @@ public sealed class Travel
         Queue(source.Tp != null ? source.Tp : $"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
-    public void DropLeveWatch() { awaitingLeve = null; leveWasLocked = false; }
-
     public void Cancel()
     {
-        DropLeveWatch();
         if (step is Step.Walking or Step.Dismounting) { try { stop.InvokeAction(); } catch (IpcNotReadyError) { } }
         if (step != Step.Idle) log.Information("[Codex] Travel cancelled");
         step = Step.Idle; Status = ""; pending = null;
@@ -182,25 +176,6 @@ public sealed class Travel
 
     public void OnUpdate(IFramework framework)
     {
-        if (step == Step.Idle && awaitingLeve is { } wait)
-        {
-            // after a levemete trip: once the leve shows up as held, go on (or say so); a stop, a zone change or a logout ends the watch
-            if ((DateTime.Now - lastLevePoll).TotalSeconds < 1) return;
-            lastLevePoll = DateTime.Now;
-            if (leveWasLocked)
-            {
-                // the unlock quest comes first
-                if (game.LeveLockedBy(data, wait.Source.Via!.Npc) != null) return;
-                leveWasLocked = false;
-            }
-            if (!LeveHeld(wait.Source)) return;
-            // the leve shows as held while the levemete's last lines are still on screen; movement waits for the dialogue to close
-            if (condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.Occupied]) return;
-            awaitingLeve = null;
-            if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry, game.CurrentJob); }
-            else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap {wait.Entry} again to go to the enemy.");
-            return;
-        }
         if (step == Step.Idle || target == null) return;
         try
         {
@@ -361,17 +336,17 @@ public sealed class Travel
 
     private void Finish(string text)
     {
+        // one trip, one place: what comes next is said here and left to the player
         if (tapped != null && ReferenceEquals(target, tapped.Via))
         {
-            awaitingLeve = (tapped, targetName);
             var which = tapped.Leve != null ? $"'{tapped.Leve}'" : "a leve of the right level";
             var left = game.LeveAllowances;
-            var locked = game.LeveLockedBy(data, target!.Npc);
-            leveWasLocked = locked != null;
-            text += (locked is { } u ? $". {target.Name}'s leves stay locked until '{u.Name}' (level {u.Level}) is done; accept that quest here first, then {which}"
-                                     : $". Accept {which} from {target.Name}") + (left >= 0 ? $" ({left} allowance(s) left)" : "")
-                  + (config.ContinueAfterLeve ? "; Codex goes on once the leve is accepted" : ", then tap the entry again for the enemy");
+            text += (game.LeveLockedBy(data, target!.Npc) is { } u ? $". {target.Name}'s leves stay locked until '{u.Name}' (level {u.Level}) is done; accept that quest here first, then {which}"
+                                                                    : $". Accept {which} from {target.Name}") + (left >= 0 ? $" ({left} allowance(s) left)" : "")
+                  + ", then Go again for the enemy";
         }
+        else if (target!.K == "questgiver")
+            text += $"; accept {target.Note}";
         else if (tapped is { K: "leve" } && ReferenceEquals(target, tapped))
             text += ". Initiate the leve here from your journal; the enemy appears while it runs";
         chat.Print($"[Codex] {text}.");

@@ -77,10 +77,6 @@ public sealed class MainWindow : Window
         ImGui.SameLine();
         var grouped = cfg.GroupByBand;
         if (ImGui.Checkbox("Group by band", ref grouped)) { cfg.GroupByBand = grouped; plugin.SaveConfig(); }
-        ImGui.SameLine();
-        var goOn = cfg.ContinueAfterLeve;
-        if (ImGui.Checkbox("Continue after a leve is accepted", ref goOn)) { cfg.ContinueAfterLeve = goOn; plugin.SaveConfig(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("After a trip to a levemete, travel on to the enemy by itself once the leve shows as accepted. Off: it says so and waits for your tap.");
         ImGui.TextColored(Grey, "Include:");
         var present = Kinds.PresentOptIn(entries);
         if (present.Count == 0) { ImGui.SameLine(); ImGui.TextColored(Grey, "nothing optional in this list"); }
