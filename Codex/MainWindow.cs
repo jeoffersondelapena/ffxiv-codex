@@ -177,10 +177,11 @@ public sealed class MainWindow : Window
     {
         ImGui.TableNextRow();
         ImGui.TableNextColumn();
-        // these bindings have no hovered-row query; the row's own rectangle stands in, measured once the first cell is placed
+        // these bindings have no hovered-row query; the row's own rectangle stands in, measured once the first cell is
+        // placed and tested unclipped, since inside a cell the clip rectangle is that one narrow cell
         var rowTop = ImGui.GetCursorScreenPos().Y;
         var left = ImGui.GetWindowPos().X;
-        if (ImGui.IsMouseHoveringRect(new Vector2(left, rowTop), new Vector2(left + ImGui.GetWindowSize().X, rowTop + ImGui.GetFrameHeight())))
+        if (ImGui.IsMouseHoveringRect(new Vector2(left, rowTop), new Vector2(left + ImGui.GetWindowSize().X, rowTop + ImGui.GetFrameHeight()), false))
             ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(ImGuiCol.HeaderHovered));
         if (list == "bst")
         {

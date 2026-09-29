@@ -123,16 +123,41 @@ public sealed unsafe class Travel
         return new Route(mainId, main.Value.Territory.RowId, PositionOf(main.Value) ?? goal, shardName, "");
     }
 
-    // the map markers carry every shard's spot; a marker's key is its Aetheryte row and its X/Y are map pixels
-    public List<(string Name, Vector3 Pos)> Shards(uint terr)
+    // Shard spots come from wherever the game keeps them: the aetheryte's own placement row when it resolves (the
+    // Idyllshire gates), else the target zone's map markers (the Ul'dah districts), else the main aetheryte's map
+    // markers as a last resort, which cannot be ranked by distance since they sit in another zone's coordinates.
+    public List<(string Name, Vector3 Pos, string From)> Shards(uint terr)
+    {
+        var found = new List<(string, Vector3, string)>();
+        var sheet = data.GetExcelSheet<Aetheryte>();
+        var territories = data.GetExcelSheet<TerritoryType>();
+        if (sheet == null || territories == null) return found;
+        var mainId = territories.GetRowOrDefault(terr)?.Aetheryte.RowId ?? 0;
+        var group = mainId != 0 ? sheet.GetRowOrDefault(mainId)?.AethernetGroup ?? 0 : 0;
+        var seen = new HashSet<string>();
+        foreach (var a in sheet)
+        {
+            if (a.IsAetheryte || (a.Territory.RowId != terr && (group == 0 || a.AethernetGroup != group))) continue;
+            var name = a.AethernetName.ValueNullable?.Name.ExtractText();
+            if (string.IsNullOrEmpty(name) || !seen.Add(name)) continue;
+            if (a.Territory.RowId == terr && PositionOf(a) is { } placed) found.Add((name, placed, "placement"));
+        }
+        foreach (var (name, pos) in MarkerShards(terr, sheet))
+            if (seen.Contains(name) && found.All(f => f.Item1 != name)) found.Add((name, pos, "marker"));
+        if (found.Count == 0 && mainId != 0 && sheet.GetRowOrDefault(mainId) is { } main)
+            foreach (var (name, pos) in MarkerShards(main.Territory.RowId, sheet))
+                if (seen.Contains(name)) found.Add((name, pos, "main map"));
+        return found;
+    }
+
+    // a marker's key is its Aetheryte row and its X/Y are map pixels
+    private List<(string Name, Vector3 Pos)> MarkerShards(uint terr, Lumina.Excel.ExcelSheet<Aetheryte> aetherytes)
     {
         var found = new List<(string, Vector3)>();
         var map = data.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(terr)?.Map.ValueNullable;
         var markers = data.GetSubrowExcelSheet<MapMarker>();
-        var aetherytes = data.GetExcelSheet<Aetheryte>();
-        if (map == null || markers == null || aetherytes == null) return found;
+        if (map == null || markers == null || !markers.HasRow(map.Value.MapMarkerRange)) return found;
         var c = map.Value.SizeFactor / 100f;
-        if (!markers.HasRow(map.Value.MapMarkerRange)) return found;
         foreach (var m in markers[map.Value.MapMarkerRange])
         {
             if (m.DataType is not (3 or 4)) continue;
@@ -148,9 +173,9 @@ public sealed unsafe class Travel
     private (string? Name, float Dist) NearestShard(Source stop, Vector3 goal)
     {
         string? best = null; var bestDist = float.MaxValue;
-        foreach (var (name, pos) in Shards(stop.Terr))
+        foreach (var (name, pos, from) in Shards(stop.Terr))
         {
-            var d = Vector3.Distance(Flat(pos), Flat(goal));
+            var d = from == "main map" ? 1e6f : Vector3.Distance(Flat(pos), Flat(goal));
             if (d < bestDist) { best = name; bestDist = d; }
         }
         return (best, bestDist);
