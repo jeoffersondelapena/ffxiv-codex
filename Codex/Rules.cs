@@ -43,7 +43,7 @@ public static class Kinds
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
     {
-        "quest", "default", "totem", "questmob", "world", "leve", "fate", "hunt", "wanted", "map", "carnivale",
+        "quest", "default", "totem", "questmob", "world", "leve", "carnivale", "fate", "hunt", "wanted", "map",
         "dungeon", "trial", "raid", "guildhest", "tdungeon", "unknown",
     };
 

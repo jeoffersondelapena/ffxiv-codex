@@ -95,7 +95,7 @@ public class RulesTests
     {
         Assert.True(Kinds.Rank("leve") < Kinds.Rank("fate"));
         Assert.True(Kinds.Rank("world") < Kinds.Rank("wanted"));
-        Assert.True(Kinds.Rank("carnivale") < Kinds.Rank("dungeon"));
+        Assert.True(Kinds.Rank("leve") < Kinds.Rank("carnivale") && Kinds.Rank("carnivale") < Kinds.Rank("fate"));
         Assert.True(Kinds.Rank("dungeon") < Kinds.Rank("unknown"));
         Assert.Equal(Kinds.Order.Length, Kinds.Rank("nonsense"));
     }
