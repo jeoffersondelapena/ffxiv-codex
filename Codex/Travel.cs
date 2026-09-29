@@ -116,6 +116,8 @@ public sealed class Travel
             lastLevePoll = DateTime.Now;
             if ((DateTime.Now - wait.Since).TotalMinutes > 10) { awaitingLeve = null; return; }
             if (!LeveHeld(wait.Source)) return;
+            // the leve shows as held while the levemete's last lines are still on screen; movement waits for the dialogue to close
+            if (condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.Occupied]) return;
             awaitingLeve = null;
             if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry); }
             else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap it again to go to the enemy.");
