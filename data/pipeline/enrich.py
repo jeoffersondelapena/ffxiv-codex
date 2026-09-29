@@ -132,6 +132,26 @@ def page_text(path):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
 
 
+def enemy_spawns(mob):
+    """The (zone, x, y) rows of the enemy page's Locations table; None when no page was fetched. The wiki lists a
+    levequest battle spot there like any spawn, so a page proves a mob roams only when it names another place."""
+    import glob
+    slug = re.sub(r"[^A-Za-z0-9 ]", "", mob).replace(" ", "_")
+    for f in glob.glob("enemies/*.json"):
+        rec = json.load(open(f))
+        if (rec.get("title") or "").lower() != mob.lower() and os.path.basename(f)[:-5].lower() != slug.lower():
+            continue
+        wt = rec.get("wikitext") or rec.get("text") or ""
+        m = re.search(r"==\s*Locations\s*==(.*?)(?:\n==[^=]|\Z)", wt, re.S)
+        if not m:
+            return []
+        rows = []
+        for r in re.finditer(r"\{\{NPC location info\|([^|}]*)\|([\d.]+)\s*,\s*([\d.]+)", m.group(1)):
+            rows.append((r.group(1).strip(), float(r.group(2)), float(r.group(3))))
+        return rows
+    return None
+
+
 def leve_only_targets(data):
     """A Locations row for a mob that exists only inside a levequest reads like an open-world spawn (Arch Demon for
     Abyssal Transfixion). When the page's Levequests section names that mob and no enemy page shows a spawn for it,
@@ -164,7 +184,12 @@ def leve_only_targets(data):
             for s in e["sources"]:
                 if s["k"] != "world" or s["name"] != mob or s.get("via"):
                     continue
-                if glob.glob("enemies/" + mob.replace(" ", "_") + "*.html"):
+                spawns = enemy_spawns(mob) or []
+                # coordinates are still the wiki's "x, y" text at this point
+                raw = s.get("xy")
+                pair = re.findall(r"[\d.]+", raw) if isinstance(raw, str) else (raw or [])
+                here = tuple(round(float(v)) for v in pair[:2]) if len(pair) >= 2 else (0, 0)
+                if any((round(x), round(y)) != here for _, x, y in spawns):
                     continue
                 info = leves.get(key)
                 s["k"] = "leve"
