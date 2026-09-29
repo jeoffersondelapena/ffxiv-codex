@@ -214,7 +214,7 @@ public sealed class MainWindow : Window
         if (ImGui.IsItemHovered())
         {
             var enabledKinds = plugin.Config.KindsFor(list);
-            var lines = e.Sources.OrderBy(Kinds.Rank).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
+            var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
                 + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
                 + (plugin.Game.SpentLabel(data, s) is string spent ? $" ({spent})" : "")
