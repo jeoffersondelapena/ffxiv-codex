@@ -15,7 +15,7 @@ public class RulesTests
     [Fact]
     public void Instances_hunts_and_maps_need_their_checkbox()
     {
-        foreach (var kind in new[] { "dungeon", "trial", "raid", "carnivale", "guildhest", "tdungeon", "map", "unknown" })
+        foreach (var kind in new[] { "dungeon", "trial", "raid", "guildhest", "tdungeon", "map", "unknown" })
         {
             Assert.False(Kinds.Visible(S(kind), new HashSet<string>()), kind);
             Assert.True(Kinds.Visible(S(kind), new HashSet<string> { kind }), kind);
@@ -26,6 +26,7 @@ public class RulesTests
     public void B_rank_hunts_are_always_shown_but_A_and_S_ranks_wait_for_the_checkbox()
     {
         Assert.True(Kinds.Visible(S("hunt", "B"), new HashSet<string>()));
+        Assert.True(Kinds.Visible(S("carnivale"), new HashSet<string>()));
         Assert.False(Kinds.Visible(S("hunt", "A"), new HashSet<string>()));
         Assert.False(Kinds.Visible(S("hunt", "S"), new HashSet<string>()));
         Assert.True(Kinds.Visible(S("hunt", "S"), new HashSet<string> { "hunt" }));
@@ -96,6 +97,8 @@ public class RulesTests
         Assert.True(Kinds.Rank("leve") < Kinds.Rank("fate"));
         Assert.True(Kinds.Rank("world") < Kinds.Rank("wanted"));
         Assert.True(Kinds.Rank("questmob") < Kinds.Rank("carnivale") && Kinds.Rank("carnivale") < Kinds.Rank("world"));
+        Assert.Equal(Kinds.Rank("world"), Kinds.Rank(S("hunt", "B")));
+        Assert.Equal(Kinds.Rank("hunt"), Kinds.Rank(S("hunt", "A")));
         Assert.True(Kinds.Rank("dungeon") < Kinds.Rank("unknown"));
         Assert.Equal(Kinds.Order.Length, Kinds.Rank("nonsense"));
     }
@@ -186,8 +189,7 @@ public class RulesTests
         Assert.Equal(25, Kinds.StageOf(stage));
         Assert.Null(Kinds.StageOf(world));
         Assert.Null(Kinds.StageOf(new Source { K = "carnivale", Name = "x", Lv = 50 }));
-        var enabled = new HashSet<string> { "carnivale" };
-        Assert.Same(stage, Kinds.Driver(e, enabled));
-        Assert.Same(world, Kinds.Driver(e, enabled, s => Kinds.StageOf(s) == null));
+        Assert.Same(stage, Kinds.Driver(e, new HashSet<string>()));
+        Assert.Same(world, Kinds.Driver(e, new HashSet<string>(), s => Kinds.StageOf(s) == null));
     }
 }

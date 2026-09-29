@@ -38,7 +38,7 @@ public sealed class Entry
 
 public static class Kinds
 {
-    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default" };
+    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default", "carnivale" };
 
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
@@ -53,9 +53,12 @@ public static class Kinds
         return i < 0 ? Order.Length : i;
     }
 
+    // a B-rank mark respawns within moments and nobody contests it, so it is an open-world kill
+    public static int Rank(Source s) => s.K == "hunt" && s.Rank == "B" ? Rank("world") : Rank(s.K);
+
     // The source that drives a row: first kind in the order with a visible, still usable source, lowest level within it.
     public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null)
-        => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
+        => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(Rank).ThenBy(s => s.Lv).FirstOrDefault();
 
     // a quest enemy exists only while its quest runs; the note carries the quest's name
     public static string? QuestOf(Source s)
@@ -68,7 +71,7 @@ public static class Kinds
     // The tracker's category order; a list only shows the ones its sources use.
     public static readonly (string Key, string Label)[] OptIn =
     {
-        ("dungeon", "Dungeons"), ("trial", "Trials"), ("raid", "Raids"), ("carnivale", "Masked Carnivale"),
+        ("dungeon", "Dungeons"), ("trial", "Trials"), ("raid", "Raids"),
         ("guildhest", "Guildhests"), ("tdungeon", "Treasure dungeons"), ("hunt", "A/S-rank hunts"), ("map", "Treasure maps"),
         ("unknown", "Location unknown"),
     };
