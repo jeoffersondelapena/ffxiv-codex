@@ -120,7 +120,7 @@ public sealed class Travel
             if (condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.Occupied]) return;
             awaitingLeve = null;
             if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry); }
-            else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap it again to go to the enemy.");
+            else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap {wait.Entry} again to go to the enemy.");
             return;
         }
         if (step == Step.Idle || target == null) return;
