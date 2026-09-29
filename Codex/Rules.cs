@@ -18,14 +18,10 @@ public sealed class Source
     public int OffX { get; set; }
     public int OffY { get; set; }
 
-    public string? Tp { get; set; }
-    public string? Aethernet { get; set; }
     public string? Leve { get; set; }
     public Source? Via { get; set; }
     public uint Npc { get; set; }
-    public float[]? World { get; set; }
     public string? Unlock { get; set; }
-    public uint QuestId { get; set; }
 
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }
@@ -37,13 +33,13 @@ public sealed class Entry
     public int? Rank { get; set; }
     public int MinLv { get; set; }
     public int UnlockLink { get; set; }
+    public string? Wiki { get; set; }
     public List<Source> Sources { get; set; } = new();
 }
 
 public static class Kinds
 {
     public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "gourd", "quest", "default", "carnivale" };
-    public static readonly string[] Duties = { "dungeon", "trial", "raid", "guildhest", "tdungeon" };
 
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
@@ -63,13 +59,6 @@ public static class Kinds
     public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null)
         => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
 
-    // what an unlock quest opens, for the trip's wording
-    public static string Opens(Source s) => s.K switch
-    {
-        "carnivale" => "that Carnivale stage",
-        "gourd" => "the Kornago gourds",
-        _ => "this source",
-    };
 
     // a quest enemy exists only while its quest runs; the note carries the quest's name
     public static string? QuestOf(Source s)
@@ -179,8 +168,8 @@ public static class Kinds
     };
 
     // A leve is accepted from its levemete first; once the game says the leve is held, the tap goes to the enemy.
-    public static Source NextStop(Source s, bool leveHeld)
-        => s.Via is { HasMapPosition: true } && !leveHeld ? s.Via : s;
+    // the first step on the map: the levemete for a leve, otherwise the spot itself
+    public static Source FirstStop(Source s) => s.Via is { HasMapPosition: true } ? s.Via : s;
 
     // wiki titles carry disambiguation the game's names do not
     public static string LeveKey(string name)

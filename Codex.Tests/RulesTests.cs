@@ -153,7 +153,6 @@ public class RulesTests
         var world = new Source { K = "world", Name = "Gigas", Lv = 45 };
         var both = new Entry { Sources = { world, stage } };
         Assert.Same(stage, Kinds.Driver(both, new HashSet<string>()));
-        Assert.Equal("that Carnivale stage", Kinds.Opens(stage));
     }
 
     [Fact]
@@ -176,16 +175,15 @@ public class RulesTests
     }
 
     [Fact]
-    public void A_leve_goes_to_its_levemete_first_and_to_the_enemy_on_the_next_tap()
+    public void A_leves_first_step_is_its_levemete_when_the_levemete_is_placed()
     {
         var via = new Source { K = "leve", Name = "Kikiri", Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
         var leve = new Source { K = "leve", Name = "Battle Drake", Leve = "A Cold-blooded Business", Via = via, Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
-        Assert.Same(via, Kinds.NextStop(leve, leveHeld: false));
-        Assert.Same(leve, Kinds.NextStop(leve, leveHeld: true));
+        Assert.Same(via, Kinds.FirstStop(leve));
         var plain = new Source { K = "world", Name = "Sundrake" };
-        Assert.Same(plain, Kinds.NextStop(plain, leveHeld: false));
+        Assert.Same(plain, Kinds.FirstStop(plain));
         var unplaced = new Source { K = "leve", Name = "Angry Sow", Via = new Source { Name = "somebody" } };
-        Assert.Same(unplaced, Kinds.NextStop(unplaced, leveHeld: false));
+        Assert.Same(unplaced, Kinds.FirstStop(unplaced));
     }
 
     [Fact]

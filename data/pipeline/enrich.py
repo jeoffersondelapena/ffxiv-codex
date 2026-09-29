@@ -64,6 +64,21 @@ def gourd_costs():
     return costs
 
 
+def wiki_links(data):
+    """each entry's own wiki page, from the links the spellbook and bestiary tables carry"""
+    base = "https://ffxiv.consolegameswiki.com"
+    by_title, by_name = {}, {}
+    for kind, name, href in json.load(open("page_urls.json")):
+        title = urllib.parse.unquote(href.split("/wiki/", 1)[1]).replace("_", " ")
+        by_title[(kind, title.lower())] = base + href
+        if name:
+            by_name[(kind, name.lower())] = base + href
+    for lst, kind in (("blu", "spell"), ("bst", "beast")):
+        for e in data[lst]:
+            key = e["name"].lower()
+            e["wiki"] = by_name.get((kind, key)) or by_title.get((kind, key)) or base + "/wiki/" + urllib.parse.quote(e["name"].replace(" ", "_"))
+
+
 def reshape(data, costs):
     """Wiki columns that name a thing rather than a place: every gourd is sold by one merchant, every Carnivale stage is
     entered through one attendant, every totem comes from one vendor. Each gets the NPC to stand at and the quest that opens it."""
@@ -125,6 +140,7 @@ def main():
     os.makedirs("gamedata", exist_ok=True)
     npcs = json.load(open(NPC_CACHE)) if os.path.exists(NPC_CACHE) else {}
     reshape(data, gourd_costs())
+    wiki_links(data)
     for kind in ("blu", "bst"):
         for e in data[kind]:
             if kind == "blu":

@@ -3,7 +3,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using Lumina.Excel.Sheets;
+using Dalamud.Utility;
 
 namespace Codex;
 
@@ -53,14 +53,6 @@ public sealed class MainWindow : Window
         var enabled = cfg.KindsFor(list);
         var unobtainedOnly = cfg.UnobtainedOnly.GetValueOrDefault(list);
         if (ImGui.Checkbox("Unobtained Only", ref unobtainedOnly)) { cfg.UnobtainedOnly[list] = unobtainedOnly; plugin.SaveConfig(); }
-        if (plugin.Travel.Active)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(Amber, plugin.Travel.Status);
-            ImGui.SameLine();
-            if (ImGui.SmallButton("Stop")) plugin.Travel.Cancel();
-        }
-        DrawMountPicker();
         var query = search.GetValueOrDefault(list, "");
         ImGui.SetNextItemWidth(260);
         if (ImGui.InputTextWithHint("##search", "Search name, enemy or place", ref query, 128)) search[list] = query;
@@ -135,7 +127,7 @@ public sealed class MainWindow : Window
                 ImGui.TableSetupColumn("min", ImGuiTableColumnFlags.WidthFixed, 52);
                 ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 220);
                 ImGui.TableSetupColumn("map", ImGuiTableColumnFlags.WidthFixed);
-                ImGui.TableSetupColumn("go", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("wiki", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("rank", ImGuiTableColumnFlags.WidthFixed, 44);
                 ImGui.TableSetupColumn("source", ImGuiTableColumnFlags.WidthStretch);
                 foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
@@ -164,29 +156,6 @@ public sealed class MainWindow : Window
         ImGui.SameLine();
         if (ImGui.Button("No", new Vector2(120, 0))) { pendingBeast = null; ImGui.CloseCurrentPopup(); }
         ImGui.EndPopup();
-    }
-
-    private void DrawMountPicker()
-    {
-        var cfg = plugin.Config;
-        ImGui.TextColored(Grey, "Mount:");
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(220);
-        if (ImGui.BeginCombo("##mount", MountName(cfg.MountId)))
-        {
-            if (ImGui.Selectable("Mount Roulette", cfg.MountId == 0)) { cfg.MountId = 0; plugin.SaveConfig(); }
-            foreach (var (id, name) in plugin.Game.UnlockedMounts(data))
-                if (ImGui.Selectable(name, cfg.MountId == id)) { cfg.MountId = id; plugin.SaveConfig(); }
-            ImGui.EndCombo();
-        }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Go mounts up for the longer stretches and flies where the zone allows it.");
-    }
-
-    private string MountName(uint id)
-    {
-        if (id == 0) return "Mount Roulette";
-        var row = data.GetExcelSheet<Mount>()?.GetRowOrDefault(id);
-        return row == null ? "Mount Roulette" : GameState.TitleCase(row.Value.Singular.ExtractText());
     }
 
     private void DrawEntry(string list, Entry e, List<Source> shown, bool done, int lv)
@@ -220,20 +189,19 @@ public sealed class MainWindow : Window
             Tap(list, e, best);
         // read before the stars draw, or they take the hover and the name shows nothing
         var nameHovered = ImGui.IsItemHovered();
-        // one button per thing a tap can do, greyed with the reason when it cannot
-        var stop = plugin.Travel.PlannedStop(best);
+        // a button per thing a row can do, greyed with the reason when it cannot
+        var stop = Kinds.FirstStop(best);
         ImGui.TableNextColumn();
         ImGui.BeginDisabled(!stop.HasMapPosition);
         if (ImGui.SmallButton($"Map##m{list}{e.Id}")) Flag(e, stop);
         ImGui.EndDisabled();
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(stop.HasMapPosition ? $"Flag {stop.Name} on the map" : "No map position known");
-        var job = list == "bst" ? (byte)43 : (byte)36;
-        var (can, why) = plugin.Travel.CanGo(stop, job);
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(stop.HasMapPosition ? $"Flag {stop.Name} on the map and open it" : "No map position known");
         ImGui.TableNextColumn();
-        ImGui.BeginDisabled(!can);
-        if (ImGui.SmallButton($"Go##g{list}{e.Id}")) { Flag(e, stop); EnsureJob(list); plugin.Travel.Go(best, e.Name, job); }
+        ImGui.BeginDisabled(e.Wiki == null);
+        if (ImGui.SmallButton($"Wiki##w{list}{e.Id}")) OpenWiki(e);
         ImGui.EndDisabled();
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(can ? $"Travel to {stop.Name}" + (stop.K == "questgiver" ? $" for {stop.Note}" : "") : why);
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Right) && e.Wiki != null) { ImGui.SetClipboardText(e.Wiki); chat.Print($"[Codex] Link copied: {e.Wiki}"); }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(e.Wiki != null ? "Open the wiki page in the browser; right-click copies the link" : "No wiki page known");
         ImGui.TableNextColumn();
         if (e.Rank is > 0 and <= 5)
         {
@@ -252,7 +220,7 @@ public sealed class MainWindow : Window
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap the name: map flag. Go: travel there");
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap the name or Map: flag the first step on the map. Wiki: the page");
         }
         ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
@@ -261,7 +229,19 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
-    private void Tap(string list, Entry e, Source tappedSource) => Flag(e, plugin.Travel.PlannedStop(tappedSource));
+    private void Tap(string list, Entry e, Source tappedSource) => Flag(e, Kinds.FirstStop(tappedSource));
+
+    // the browser is the user's; a failed hand-off leaves the link in chat and on the clipboard
+    private void OpenWiki(Entry e)
+    {
+        if (e.Wiki == null) return;
+        try { Util.OpenLink(e.Wiki); }
+        catch (Exception ex)
+        {
+            ImGui.SetClipboardText(e.Wiki);
+            chat.Print($"[Codex] The browser did not open ({ex.Message}); link copied: {e.Wiki}");
+        }
+    }
 
     private void Flag(Entry e, Source s)
     {
@@ -277,11 +257,4 @@ public sealed class MainWindow : Window
         }
     }
 
-    // the learn only counts on the right job, so a trip starts by putting it on
-    private void EnsureJob(string list)
-    {
-        var (job, name) = list == "bst" ? ((byte)43, "Beastmaster") : ((byte)36, "Blue Mage");
-        if (plugin.Game.CurrentJob == job) return;
-        chat.Print(plugin.Game.EquipJob(job) ? $"[Codex] Switched to {name}." : $"[Codex] No gearset saved for {name}; save one and tap again.");
-    }
 }
