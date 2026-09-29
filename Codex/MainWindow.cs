@@ -132,7 +132,7 @@ public sealed class MainWindow : Window
             if (!open) continue;
             ImGui.Indent();
             // fixed widths for the optional cells keep every band aligned; the source column takes the rest
-            if (ImGui.BeginTable($"rows##{key}", 11, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            if (ImGui.BeginTable($"rows##{key}", 11, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX | ImGuiTableFlags.RowBg))
             {
                 ImGui.TableSetupColumn("done", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("no", ImGuiTableColumnFlags.WidthFixed);
@@ -176,6 +176,11 @@ public sealed class MainWindow : Window
     private void DrawEntry(string list, Entry e, List<Source> shown, bool done, int lv)
     {
         ImGui.TableNextRow();
+        // these bindings have no hovered-row query; the row's own rectangle stands in
+        var rowTop = ImGui.GetCursorScreenPos().Y;
+        var left = ImGui.GetWindowPos().X;
+        if (ImGui.IsMouseHoveringRect(new Vector2(left, rowTop), new Vector2(left + ImGui.GetWindowSize().X, rowTop + ImGui.GetFrameHeight())))
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(ImGuiCol.HeaderHovered));
         ImGui.TableNextColumn();
         if (list == "bst")
         {
@@ -256,7 +261,10 @@ public sealed class MainWindow : Window
     {
         var (job, name) = list == "bst" ? ((byte)43, "Beastmaster") : ((byte)36, "Blue Mage");
         if (plugin.Game.CurrentJob == job) return;
-        chat.Print(plugin.Game.EquipJob(job) ? $"[Codex] Switched to {name}." : $"[Codex] No gearset saved for {name}; save one and press again.");
+        var done = plugin.Game.EquipJob(job, log);
+        chat.Print(done == null ? $"[Codex] No gearset saved for {name}; save one and press again."
+                 : done.Value.Equipped ? $"[Codex] Switched to {name} (gearset '{done.Value.Name}')."
+                 : $"[Codex] The game refused gearset '{done.Value.Name}' for {name} right now.");
     }
 
     private void DrawMountPicker()

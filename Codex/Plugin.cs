@@ -54,6 +54,9 @@ public sealed class Plugin : IDalamudPlugin
         {
             case "reload": Data = CodexData.Load(pi, log); break;
             case "stop": Travel.Cancel(); break;
+            case "shards":
+                foreach (var (name, pos) in Travel.Shards(clientState.TerritoryType)) log.Information($"[Codex] shard {name} at ({pos.X:0}, {pos.Z:0})");
+                break;
             default: main.IsOpen = !main.IsOpen; break;
         }
     }

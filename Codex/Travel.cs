@@ -110,17 +110,48 @@ public sealed unsafe class Travel
         var mainId = data.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(stop.Terr)?.Aetheryte.RowId ?? 0;
         var main = mainId != 0 ? sheet.GetRowOrDefault(mainId) : null;
         if (main == null || !attuned.Contains(mainId)) return new Route(0, 0, default, null, $"No attuned aetheryte for {stop.Loc}");
-        Aetheryte? near = null; bestDist = float.MaxValue;
-        foreach (var a in sheet)
+        var shardName = stop.Tp;
+        if (shardName == null)
         {
-            if (a.IsAetheryte || a.Territory.RowId != stop.Terr || a.AethernetGroup != main.Value.AethernetGroup) continue;
-            var pos = PositionOf(a);
-            if (pos == null) continue;
-            var d = Vector3.Distance(Flat(pos.Value), Flat(goal));
-            if (d < bestDist) { near = a; bestDist = d; }
+            var (name, dist) = NearestShard(stop, goal);
+            shardName = name;
+            if (shardName == null) return new Route(0, 0, default, null, $"No aethernet shard of {stop.Loc} is on the map");
+            log.Debug($"[Codex] Travel: nearest shard to {stop.Name} is {shardName} ({dist:0} yalms)");
         }
-        if (near == null) return new Route(0, 0, default, null, $"No aethernet shard reaches {stop.Loc}");
-        return new Route(mainId, main.Value.Territory.RowId, PositionOf(main.Value) ?? goal, near.Value.AethernetName.ValueNullable?.Name.ExtractText(), "");
+        return new Route(mainId, main.Value.Territory.RowId, PositionOf(main.Value) ?? goal, shardName, "");
+    }
+
+    // the map markers carry every shard's spot; a marker's key is its Aetheryte row and its X/Y are map pixels
+    public List<(string Name, Vector3 Pos)> Shards(uint terr)
+    {
+        var found = new List<(string, Vector3)>();
+        var map = data.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(terr)?.Map.ValueNullable;
+        var markers = data.GetSubrowExcelSheet<MapMarker>();
+        var aetherytes = data.GetExcelSheet<Aetheryte>();
+        if (map == null || markers == null || aetherytes == null) return found;
+        var c = map.Value.SizeFactor / 100f;
+        if (!markers.HasRow(map.Value.MapMarkerRange)) return found;
+        foreach (var m in markers[map.Value.MapMarkerRange])
+        {
+            if (m.DataType is not (3 or 4)) continue;
+            var a = aetherytes.GetRowOrDefault(m.DataKey.RowId);
+            if (a == null || a.Value.IsAetheryte) continue;
+            var name = a.Value.AethernetName.ValueNullable?.Name.ExtractText();
+            if (string.IsNullOrEmpty(name)) continue;
+            found.Add((name, new Vector3((m.X - 1024f) / c - map.Value.OffsetX, 0, (m.Y - 1024f) / c - map.Value.OffsetY)));
+        }
+        return found;
+    }
+
+    private (string? Name, float Dist) NearestShard(Source stop, Vector3 goal)
+    {
+        string? best = null; var bestDist = float.MaxValue;
+        foreach (var (name, pos) in Shards(stop.Terr))
+        {
+            var d = Vector3.Distance(Flat(pos), Flat(goal));
+            if (d < bestDist) { best = name; bestDist = d; }
+        }
+        return (best, bestDist);
     }
 
     private static Vector3 Flat(Vector3 v) => new(v.X, 0, v.Z);

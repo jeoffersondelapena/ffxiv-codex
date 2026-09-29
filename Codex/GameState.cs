@@ -101,19 +101,21 @@ public sealed unsafe class GameState
         get { var ps = PlayerState.Instance(); return ps == null ? (byte)0 : ps->CurrentClassJobId; }
     }
 
-    // the first saved gearset of that job; false when there is none
-    public bool EquipJob(byte classJob)
+    // the first saved gearset of that job; null when there is none, else whether the game took it
+    public (string Name, bool Equipped)? EquipJob(byte classJob, IPluginLog log)
     {
         var module = RaptureGearsetModule.Instance();
-        if (module == null) return false;
-        for (var i = 0; i < module->NumGearsets; i++)
+        if (module == null) return null;
+        for (var i = 0; i < 100; i++)
         {
+            if (!module->IsValidGearset(i)) continue;
             var g = module->GetGearset(i);
             if (g == null || !g->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists) || g->ClassJob != classJob) continue;
-            module->EquipGearset(i, 0);
-            return true;
+            var result = module->EquipGearset(g->Id, 0);
+            log.Information($"[Codex] Gearset {g->Id} '{g->NameString}' (job {g->ClassJob}) equip result {result}");
+            return (g->NameString, result >= 0);
         }
-        return false;
+        return null;
     }
 
     public bool IsMountUnlocked(uint mountId)
