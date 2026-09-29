@@ -190,7 +190,7 @@ def enemy_sources(title, fallback=None):
             pi=place[known[0]]
             x['leve']=known[0]; x['via']=dict(name=pi['giver'],loc=pi.get('zone') or x['loc'],xy=pi['gxy']); x['note']='levequest: '+' · '.join(dict.fromkeys(named))
         elif lm:
-            x['via']=dict(name=lm.group(1).strip(),loc=x['loc'],xy=None)
+            x['k']='wanted'; x['via']=dict(name=lm.group(1).strip(),loc=x['loc'],xy=None)
             x['note']=('wanted target during level %s leves from %s'%(ll.group(1),lm.group(1).strip())) if ll else ('wanted target, leves from '+lm.group(1).strip())
     return out
 
@@ -346,7 +346,7 @@ def build_bst():
                     elif 'hunt mark' in po.lower() or mob in elite:
                         k='hunt'; plc=zone or po; m=re.search(r'([ABS])-Rank',po); rank=m.group(1) if m else None; note=po
                     elif (iks and iks[0]=='leve') or (pinfo and pinfo['kind']=='leve') or 'levequest' in loc.lower() or 'levequest' in po.lower():
-                        k='leve'; plc=zone or (pinfo or {}).get('zone') or LEVE_ZONE.get(po,po); note='levequest: '+po
+                        k='wanted' if 'wanted target' in po.lower() else 'leve'; plc=zone or (pinfo or {}).get('zone') or LEVE_ZONE.get(po,po); note=('wanted target: ' if k=='wanted' else 'levequest: ')+po
                     elif (iks and iks[0]=='questmob') or (pinfo and pinfo['kind']=='questmob'):
                         k='questmob'; plc=zone or (pinfo or {}).get('zone') or po; note='quest: '+po
                     elif po=='Overworld' and zone:

@@ -38,7 +38,24 @@ public sealed class Entry
 
 public static class Kinds
 {
-    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "quest", "default" };
+    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default" };
+
+    // given things first, then certainty, then waiting, then luck; party content second last
+    public static readonly string[] Order =
+    {
+        "quest", "default", "totem", "questmob", "world", "leve", "fate", "hunt", "wanted", "map", "carnivale",
+        "dungeon", "trial", "raid", "guildhest", "tdungeon", "unknown",
+    };
+
+    public static int Rank(string kind)
+    {
+        var i = Array.IndexOf(Order, kind);
+        return i < 0 ? Order.Length : i;
+    }
+
+    // The source that drives a row: first kind in the order with a visible source, lowest level within it.
+    public static Source? Driver(Entry e, HashSet<string> enabled)
+        => e.Sources.Where(s => Visible(s, enabled)).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
 
     // The tracker's category order; a list only shows the ones its sources use.
     public static readonly (string Key, string Label)[] OptIn =
@@ -66,21 +83,14 @@ public static class Kinds
         return OptIn.Where(o => present.Contains(o.Key)).ToList();
     }
 
-    // An entry sits at its lowest visible source, the way the tracker's level filter reads it.
-    public static int? ShownLevel(Entry e, HashSet<string> enabled)
-    {
-        int? best = null;
-        foreach (var s in e.Sources)
-            if (Visible(s, enabled) && (best == null || s.Lv < best)) best = s.Lv;
-        return best;
-    }
+    public static int? ShownLevel(Entry e, HashSet<string> enabled) => Driver(e, enabled)?.Lv;
 
     public static string Label(string kind)
     {
         foreach (var (key, label) in OptIn) if (key == kind) return label;
         return kind switch
         {
-            "world" => "Open world", "fate" => "FATE", "leve" => "Levequest", "questmob" => "Quest enemy",
+            "world" => "Open world", "fate" => "FATE", "leve" => "Levequest", "wanted" => "Wanted target", "questmob" => "Quest enemy",
             "totem" => "Whalaqee totem", "quest" => "Quest reward", "default" => "Known from the start", _ => kind,
         };
     }
@@ -116,6 +126,7 @@ public static class Kinds
         "leve" => "Levequest: accept it from a levemete first (it uses an allowance); the enemy appears only while the leve runs",
         "fate" => "FATE: the enemy appears only while the FATE is up",
         "hunt" => "Hunt mark: roams the zone and spawns on a timer",
+        "wanted" => "Wanted target: a rare chance during leves of one level from one levemete; each try costs an allowance",
         "questmob" => "Quest enemy: appears only during that quest",
         "quest" => "Quest reward",
         "totem" => "Whalaqee totem: bought from Wayward Gaheel Ja once its requirement is met",

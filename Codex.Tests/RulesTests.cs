@@ -8,7 +8,7 @@ public class RulesTests
     [Fact]
     public void Open_world_sources_are_always_shown()
     {
-        foreach (var kind in new[] { "world", "fate", "leve", "questmob", "totem", "quest", "default" })
+        foreach (var kind in new[] { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default" })
             Assert.True(Kinds.Visible(S(kind), new HashSet<string>()), kind);
     }
 
@@ -75,12 +75,29 @@ public class RulesTests
     }
 
     [Fact]
-    public void An_entry_sits_at_its_lowest_visible_source()
+    public void The_driving_source_follows_the_kind_order_then_the_level()
     {
-        var e = new Entry { Sources = { new Source { K = "dungeon", Lv = 50 }, new Source { K = "world", Lv = 28 }, new Source { K = "hunt", Rank = "A", Lv = 20 } } };
-        Assert.Equal(28, Kinds.ShownLevel(e, new HashSet<string>()));
-        Assert.Equal(20, Kinds.ShownLevel(e, new HashSet<string> { "hunt" }));
-        Assert.Null(Kinds.ShownLevel(new Entry { Sources = { new Source { K = "raid", Lv = 60 } } }, new HashSet<string>()));
+        var wanted = new Source { K = "wanted", Lv = 1 }; var world = new Source { K = "world", Lv = 30 }; var dungeon = new Source { K = "dungeon", Lv = 50 };
+        var e = new Entry { Sources = { wanted, dungeon, world } };
+        Assert.Same(world, Kinds.Driver(e, new HashSet<string>()));
+        Assert.Equal(30, Kinds.ShownLevel(e, new HashSet<string>()));
+        Assert.Same(world, Kinds.Driver(e, new HashSet<string> { "dungeon" }));
+        var quest = new Source { K = "quest", Lv = 45 };
+        Assert.Same(quest, Kinds.Driver(new Entry { Sources = { world, quest } }, new HashSet<string>()));
+        var low = new Source { K = "world", Lv = 12 };
+        Assert.Same(low, Kinds.Driver(new Entry { Sources = { world, low } }, new HashSet<string>()));
+        Assert.Null(Kinds.Driver(new Entry { Sources = { dungeon } }, new HashSet<string>()));
+        Assert.Same(dungeon, Kinds.Driver(new Entry { Sources = { dungeon } }, new HashSet<string> { "dungeon" }));
+    }
+
+    [Fact]
+    public void Leve_beats_fate_and_party_content_comes_second_last()
+    {
+        Assert.True(Kinds.Rank("leve") < Kinds.Rank("fate"));
+        Assert.True(Kinds.Rank("world") < Kinds.Rank("wanted"));
+        Assert.True(Kinds.Rank("carnivale") < Kinds.Rank("dungeon"));
+        Assert.True(Kinds.Rank("dungeon") < Kinds.Rank("unknown"));
+        Assert.Equal(Kinds.Order.Length, Kinds.Rank("nonsense"));
     }
 
     [Fact]

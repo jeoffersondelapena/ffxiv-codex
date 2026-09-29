@@ -200,7 +200,7 @@ public sealed class MainWindow : Window
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Minimum level to obtain");
         }
         ImGui.SameLine();
-        var best = shown.FirstOrDefault(s => s.Rec) ?? shown[0];
+        var best = Kinds.Driver(e, plugin.Config.KindsFor(list)) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
             Tap(e, best);
         if (e.Rank is > 0 and <= 5)
@@ -211,10 +211,12 @@ public sealed class MainWindow : Window
         }
         if (ImGui.IsItemHovered())
         {
-            var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
-                + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "")
-                + (s.Via != null ? $"\n    levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
-            var hints = shown.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
+            var enabledKinds = plugin.Config.KindsFor(list);
+            var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
+                + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
+                + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
+                + (s.Via != null ? $"\n       levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
+            var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
