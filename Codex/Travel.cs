@@ -273,6 +273,8 @@ public sealed class Travel
             text += $". Accept {which} from {target!.Name}" + (left >= 0 ? $" ({left} allowance(s) left)" : "")
                   + (config.ContinueAfterLeve ? "; Codex goes on once it is accepted" : ", then tap the entry again for the enemy");
         }
+        else if (tapped is { K: "leve" } && ReferenceEquals(target, tapped))
+            text += ". Initiate the leve here from your journal; the enemy appears while it runs";
         chat.Print($"[Codex] {text}.");
         log.Information($"[Codex] Travel done: {text}");
         step = Step.Idle; Status = ""; target = null;
