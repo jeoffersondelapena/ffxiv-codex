@@ -7,7 +7,7 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 
 ## Data
 - Source: the wiki pages https://ffxiv.consolegameswiki.com/wiki/Blue_Magic_Spellbook and https://ffxiv.consolegameswiki.com/wiki/Master%27s_Bestiary, scraped by the pipeline already in `~/ffxiv-log-tracker` (`run_all.py` -> `data.json`: entries with id, name, minLv, sources[k, name, t, loc, xy, lv, lvMax, rank, note, rec]). The scraper and its compact output move into this repo; raw wiki page caches live under `data/cache/` in the project folder, git-ignored (wiki text is not ours to republish).
-- Source kinds and rules copied from the tracker artifact: always shown: world, fate, leve, questmob, totem, quest, default, carnivale (since 2026-09-29: every stage gets cleared anyway), and **hunt with rank B**; opt-in, one checkbox each per list, laid out left to right in the driver order (since 2026-09-29): A/S-rank hunts, Wanted targets, Treasure maps, Dungeons, Trials, Raids, Guildhests, Treasure dungeons, Location unknown. Labels Title Case. Every box explains its kind in a hover tooltip. Wanted targets became opt-in on 2026-09-29 (rare, luck-based, allowance per try), unticked by default like the rest.
+- Source kinds come from the tracker artifact; which are always shown, which are opt-in and why is in "Source order" below. Labels Title Case.
 - Bands: 1-15, 16-30, 31-40, 41-50, 51-60, 61-70, 71-80, 81-90, 91-100, by the entry's minLv; entries sorted by level within a band; the level is shown on every entry.
 - Refresh: re-run the scraper (weekly via the hourly wedge-watch script, or on demand); the plugin re-reads the data file on load and on `/codex reload`.
 
@@ -19,7 +19,7 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 ## UI
 - Window per list (Blue Magic, Beasts): an overall line at the top ("N of T obtained, P%", floored, plus how many entries the Include filters hide), band groups, entries with level and check mark, "Unobtained Only" filter, the opt-in category checkboxes, a band shows complete when everything shown in it is done ("look at the next band"), search optional.
 - A search box (name, enemy or place, like the tracker) and the tracker's sort options (by level, by number both ways, A to Z, Z to A) sit above the Include row. Ticking or unticking a beast asks for confirmation first, since those ticks are by hand.
-- Each entry is driven by one source, chosen by the user's kind order (known / quest reward / totem / quest enemy, Carnivale, open world, levequest, FATE, hunt, wanted target, treasure map, party duties, unknown; the Carnivale ranks with the things the user does anyway, since every stage gets cleared once), lowest level within the kind; that source sets the level and band, the flag and the trip. A quest enemy whose quest the character has completed no longer drives the row, since each quest is played once; the tooltip marks it "(quest done)", or "(quest done, repeatable)" when the Quest sheet says the quest can be taken again. The same holds for the Masked Carnivale: stages are played until cleared and not replayed, so a source whose stage the character has cleared (the game's per-duty completion flag) no longer drives the row and is marked "(stage cleared)". The tooltip lists every source of the entry, in that order, with the driver marked and unincluded kinds labelled. Wanted targets (a rare spawn during leves) are their own kind, opt-in like the other luck-heavy kinds. This departs from the tracker's lowest-level rule on purpose (2026-09-29): a rare level-1 wanted target must not outrank a plain open-world mob at a higher level. Previously: an entry sits at its lowest visible source, with a "min N" badge for the wiki's minimum level to obtain when above 1; entries whose level has no band land under "Level unknown". Only the opt-in categories a list actually uses get a checkbox, in the driver order; hunt sources are labelled by rank ("B-rank hunt").
+- Each entry is driven by one source, chosen by the source order below, lowest level within the kind; that source sets the level and band, the flag and the trip. This departs from the tracker's lowest-level rule on purpose (2026-09-29): a rare level-1 wanted target must not outrank a plain open-world mob at a higher level. Previously: an entry sat at its lowest visible source, with a "min N" badge for the wiki's minimum level to obtain when above 1; entries whose level has no band land under "Level unknown". Hunt sources are labelled by rank ("B-rank hunt").
 - Whalaqee totems point at Wayward Gaheel Ja (Ul'dah - Steps of Thal 12.5, 12.9); the trip is one Lifestream command, `tp Weavers' Guild`, which teleports to Ul'dah and takes the aethernet to that shard, then walks.
 - Each row shows its number in the Blue Magic Spellbook or the Master's Bestiary; a "Group by band" toggle flattens the list; the tooltip explains what each source kind takes (levemete, FATE up, hunt timer, duty).
 - Leve sources carry the levemete (the leve page's quest giver and coordinates) as a first stop. Which stop a tap takes is decided by the game: while the leve is not held (QuestManager's active leves, matched by name; any active leve for a wanted target), the tap goes to the levemete and names the leve and the allowances left; once held, to the enemy. After a levemete trip Codex watches for the acceptance for ten minutes and either says so or, with "Continue after a leve is accepted" on, travels on by itself.
@@ -27,6 +27,42 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 - Tap an entry: map flag at the source's coordinates (map link + flag), zone named. Sources without coordinates show the location text.
 - Travel toggle (off by default): teleport to the zone's nearest aetheryte via Lifestream IPC (`Lifestream.ExecuteCommand`, e.g. `tp <name>`), waiting while Lifestream is busy and failing fast when it never starts; for a stretch longer than 15 yalms mount up first (the mount picked in the window, Mount Roulette by default, like GatherBuddy Reborn) and fly where the zone's aether currents are complete; dismount on arrival; a source with a zone but no coordinates (roaming hunts) only teleports; then walk with vnavmesh: wait for `vnavmesh.Nav.IsReady` (show progress from `Nav.BuildProgress`, like GatherBuddy Reborn), convert map coords to world X/Z (Map sheet scale/offset), `vnavmesh.Query.Mesh.PointOnFloor` for height, `vnavmesh.SimpleMove.PathfindAndMoveTo`. Best effort; never required.
 - Logs: Information lines for meaningful events (data loaded, state saved, tap/travel actions, IPC missing), none per frame. Comments in code terse (the user's commit hook rejects explainer prose).
+
+## Source order
+
+Why a row shows the source it shows. Read this before touching `Order`, `AlwaysOn` or `OptIn` in `Codex/Rules.cs`; the tests pin the order, so a change here is a change there too.
+
+**Driver order.** The first kind in this list that an entry has, lowest level within it, drives the row: its level and band, the flag and the trip.
+
+A. Sure and free: certain, and it comes without a trip.
+1. Known from the start (`default`)
+2. Quest reward (`quest`)
+3. Totem (`totem`): a one-spell item unlocked by spell-count and Carnivale achievements; nothing is spent.
+No entry has two of these, so the order inside the group never decides anything.
+
+B. Free roll: a chance, but on a trip made once anyway, so the attempt costs nothing extra. Spent after that visit; the row then shows its next source.
+4. Quest enemy (`questmob`): spent when the quest is complete, repeatable or not, since each quest is played once.
+5. Masked Carnivale (`carnivale`): spent when the stage's clear flag is set, since stages are played until cleared and never replayed. The learn there is not guaranteed even though stages are synced.
+No entry has both.
+
+C. Grind: a chance, and it costs time or allowances. Ordered by what annoys least.
+6. Open world (`world`): nothing spent, only spawn and cast waits.
+7. Levequest (`leve`): an allowance per try, but no waiting. Spending beats waiting.
+8. FATE (`fate`): wait for the spawn.
+9. Hunt mark (`hunt`): wait for the timer and compete. B ranks wait less but still wait, so they share the slot.
+10. Wanted target (`wanted`): luck whether it appears at all, plus an allowance per try.
+11. Treasure map (`map`): a map item plus a lucky roll for the mob.
+
+D. Party content: the one sure learn on a synced kill, but solo play makes it second last. Ordered by how hard it is to get in.
+12. Dungeon (`dungeon`), 13. Trial (`trial`), 14. Raid (`raid`), 15. Guildhest (`guildhest`), 16. Treasure dungeon (`tdungeon`)
+
+E. Location unknown (`unknown`): nowhere to send anyone. Last.
+
+**Include row.** Which kinds count at all. Always on, no box: groups A and B, open world, levequest, FATE, and B-rank hunts. Opt-in, one box each, laid out in the driver order: A/S-rank hunts, Wanted targets, Treasure maps, Dungeons, Trials, Raids, Guildhests, Treasure dungeons, Location unknown. They are opt-in because they need a party or lean on luck with a cost attached, so they may never be wanted. B ranks stay on because the wait is short and nobody contests them. Every box has a hover tooltip; a list shows only the boxes for kinds it has.
+
+**On top.** A spent or unincluded source never drives a row but stays in the tooltip, labelled "(quest done)", "(quest done, repeatable)", "(stage cleared)" or "(not included)". The tooltip lists every source in this order with the driver marked.
+
+**How it got here (2026-09-29).** Settled after the in-game tests: leve above FATE because waiting annoys more than an allowance; quest rewards and the like first because they happen anyway; party content second last for a solo player; quest enemy and Carnivale moved into the free-roll group once both were treated as one visit each; wanted targets made opt-in because appearance is luck and each try costs an allowance; B ranks kept in the hunt slot because a short wait is still a wait; the Include row laid out in the driver order so the two never contradict.
 
 ## Acceptance criteria
 1. `/codex` opens the window; both lists render all entries from the data file grouped by band, sorted by level, level visible.
