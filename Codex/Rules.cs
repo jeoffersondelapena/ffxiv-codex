@@ -43,7 +43,7 @@ public static class Kinds
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
     {
-        "quest", "default", "totem", "questmob", "carnivale", "world", "leve", "fate", "hunt", "wanted", "map",
+        "default", "quest", "totem", "questmob", "carnivale", "world", "leve", "fate", "hunt", "wanted", "map",
         "dungeon", "trial", "raid", "guildhest", "tdungeon", "unknown",
     };
 
@@ -53,9 +53,13 @@ public static class Kinds
         return i < 0 ? Order.Length : i;
     }
 
-    // The source that drives a row: first kind in the order with a visible source, lowest level within it.
-    public static Source? Driver(Entry e, HashSet<string> enabled)
-        => e.Sources.Where(s => Visible(s, enabled)).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
+    // The source that drives a row: first kind in the order with a visible, still usable source, lowest level within it.
+    public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null)
+        => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
+
+    // a quest enemy exists only while its quest runs; the note carries the quest's name
+    public static string? QuestOf(Source s)
+        => s.K == "questmob" && s.Note != null && s.Note.StartsWith("quest: ") ? s.Note["quest: ".Length..] : null;
 
     // The tracker's category order; a list only shows the ones its sources use.
     public static readonly (string Key, string Label)[] OptIn =
@@ -83,7 +87,7 @@ public static class Kinds
         return OptIn.Where(o => present.Contains(o.Key)).ToList();
     }
 
-    public static int? ShownLevel(Entry e, HashSet<string> enabled) => Driver(e, enabled)?.Lv;
+    public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null) => Driver(e, enabled, usable)?.Lv;
 
     public static string Label(string kind)
     {
@@ -144,7 +148,7 @@ public static class Kinds
 
     // wiki titles carry disambiguation the game's names do not
     public static string LeveKey(string name)
-        => System.Text.RegularExpressions.Regex.Replace(name, @"\s*\((L|Levequest)\)\s*$", "").Trim().ToLowerInvariant();
+        => System.Text.RegularExpressions.Regex.Replace(name, @"\s*\((L|Levequest|Quest)\)\s*$", "").Trim().ToLowerInvariant();
 
     public static string SourceLabel(Source s)
         => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);

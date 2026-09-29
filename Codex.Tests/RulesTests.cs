@@ -163,4 +163,17 @@ public class RulesTests
         Assert.Equal("birds of a feather", Kinds.LeveKey("Birds of a Feather (Levequest)"));
         Assert.Equal("reeking havoc", Kinds.LeveKey("Reeking Havoc"));
     }
+
+    [Fact]
+    public void A_quest_enemy_whose_quest_is_done_no_longer_drives_the_row()
+    {
+        var mob = new Source { K = "questmob", Name = "Doctore", Lv = 40, Note = "quest: Mr. Slipshod and Ms. Uptight" };
+        var world = new Source { K = "world", Name = "Dullahan", Lv = 45 };
+        var e = new Entry { Sources = { world, mob } };
+        Assert.Equal("Mr. Slipshod and Ms. Uptight", Kinds.QuestOf(mob));
+        Assert.Null(Kinds.QuestOf(world));
+        Assert.Same(mob, Kinds.Driver(e, new HashSet<string>()));
+        Assert.Same(world, Kinds.Driver(e, new HashSet<string>(), s => Kinds.QuestOf(s) == null));
+        Assert.Equal("ancient wisdom", Kinds.LeveKey("Ancient Wisdom (Quest)"));
+    }
 }

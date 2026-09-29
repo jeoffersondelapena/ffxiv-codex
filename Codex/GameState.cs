@@ -62,6 +62,25 @@ public sealed unsafe class GameState
         return leveIds.TryGetValue(Kinds.LeveKey(name), out var id) ? id : (ushort)0;
     }
 
+    private Dictionary<string, (uint Id, bool Repeatable)>? quests;
+
+    // a quest-bound enemy is gone once its quest is complete, unless the quest repeats
+    public bool QuestSpent(IDataManager data, string name)
+    {
+        if (quests == null)
+        {
+            quests = new Dictionary<string, (uint, bool)>();
+            var sheet = data.GetExcelSheet<Quest>();
+            if (sheet != null)
+                foreach (var q in sheet)
+                {
+                    var key = Kinds.LeveKey(q.Name.ExtractText());
+                    if (key.Length > 0) quests.TryAdd(key, (q.RowId, q.IsRepeatable));
+                }
+        }
+        return quests.TryGetValue(Kinds.LeveKey(name), out var found) && !found.Repeatable && QuestManager.IsQuestComplete(found.Id);
+    }
+
     public bool IsMountUnlocked(uint mountId)
     {
         var ps = PlayerState.Instance();
