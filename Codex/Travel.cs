@@ -271,8 +271,10 @@ public sealed class Travel
             awaitingLeve = (tapped, targetName, DateTime.Now);
             var which = tapped.Leve != null ? $"'{tapped.Leve}'" : "a leve of the right level";
             var left = game.LeveAllowances;
-            text += $". Accept {which} from {target!.Name}" + (left >= 0 ? $" ({left} allowance(s) left)" : "")
-                  + (config.ContinueAfterLeve ? "; Codex goes on once it is accepted" : ", then tap the entry again for the enemy");
+            var locked = game.LeveLockedBy(data, target!.Npc);
+            text += (locked is { } u ? $". {target.Name}'s leves stay locked until '{u.Name}' (level {u.Level}) is done; accept that quest here first, then {which}"
+                                     : $". Accept {which} from {target.Name}") + (left >= 0 ? $" ({left} allowance(s) left)" : "")
+                  + (config.ContinueAfterLeve ? "; Codex goes on once the leve is accepted" : ", then tap the entry again for the enemy");
         }
         else if (tapped is { K: "leve" } && ReferenceEquals(target, tapped))
             text += ". Initiate the leve here from your journal; the enemy appears while it runs";

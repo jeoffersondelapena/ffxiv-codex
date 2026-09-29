@@ -22,6 +22,7 @@ public sealed class Source
     public string? Aethernet { get; set; }
     public string? Leve { get; set; }
     public Source? Via { get; set; }
+    public uint Npc { get; set; }
 
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }

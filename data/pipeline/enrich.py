@@ -66,7 +66,7 @@ def npc_position(name, zone, cache):
             m = (f.get("Map") or {}).get("fields") or {}
             size, offx, offy = m.get("SizeFactor", 100), m.get("OffsetX", 0), m.get("OffsetY", 0)
             found = {"xy": [world_to_map(f["X"], size, offx), world_to_map(f["Z"], size, offy)], "terr": terr["row_id"], "map": f["Map"]["row_id"],
-                     "size": size, "offX": offx, "offY": offy}
+                     "size": size, "offX": offx, "offY": offy, "npc": npc["row_id"]}
             break
         if found:
             break

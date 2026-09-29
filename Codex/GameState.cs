@@ -87,6 +87,27 @@ public sealed unsafe class GameState
         return null;
     }
 
+    private Dictionary<uint, (string Name, uint Id, int Level)>? leveUnlocks;
+
+    // a levemete offers nothing until that NPC's own "Leves of …" quest is done
+    public (string Name, int Level)? LeveLockedBy(IDataManager data, uint npc)
+    {
+        if (npc == 0) return null;
+        if (leveUnlocks == null)
+        {
+            leveUnlocks = new Dictionary<uint, (string, uint, int)>();
+            var sheet = data.GetExcelSheet<Quest>();
+            if (sheet != null)
+                foreach (var q in sheet)
+                {
+                    var name = q.Name.ExtractText();
+                    if (name.StartsWith("Leves of ", StringComparison.Ordinal))
+                        leveUnlocks.TryAdd(q.IssuerStart.RowId, (name, q.RowId, q.ClassJobLevel[0]));
+                }
+        }
+        return leveUnlocks.TryGetValue(npc, out var u) && !QuestManager.IsQuestComplete(u.Id) ? (u.Name, u.Level) : null;
+    }
+
     // null while the quest is open; otherwise whether the game lets it be taken again
     public bool? QuestDone(IDataManager data, string name)
     {
