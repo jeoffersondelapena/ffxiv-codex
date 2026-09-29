@@ -9,6 +9,7 @@
 		<!-- Compiled from the plugin's own source so the tests exercise the shipped code. The plugin
 		     targets net10.0-windows and cannot be referenced as an assembly on a Mac. -->
 		<Compile Include="..\Codex\Rules.cs" Link="Rules.cs" />
+		<Compile Include="..\Codex\KindSets.cs" Link="KindSets.cs" />
 		<Compile Include="..\Codex\MapMath.cs" Link="MapMath.cs" />
 		<Compile Include="..\Codex\StateStore.cs" Link="StateStore.cs" />
 	</ItemGroup>

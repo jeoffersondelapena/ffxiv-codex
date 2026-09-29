@@ -38,7 +38,10 @@ public sealed class Entry
 
 public static class Kinds
 {
-    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default", "carnivale" };
+    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "quest", "default", "carnivale" };
+
+    // boxes that start ticked: rare and luck-based, so worth a way out, but never hidden unasked
+    public static readonly string[] DefaultOn = { "wanted" };
 
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
@@ -69,7 +72,7 @@ public static class Kinds
     public static readonly (string Key, string Label)[] OptIn =
     {
         ("dungeon", "Dungeons"), ("trial", "Trials"), ("raid", "Raids"),
-        ("guildhest", "Guildhests"), ("tdungeon", "Treasure dungeons"), ("hunt", "A/S-rank hunts"), ("map", "Treasure maps"),
+        ("guildhest", "Guildhests"), ("tdungeon", "Treasure dungeons"), ("hunt", "A/S-rank hunts"), ("wanted", "Wanted targets"), ("map", "Treasure maps"),
         ("unknown", "Location unknown"),
     };
 

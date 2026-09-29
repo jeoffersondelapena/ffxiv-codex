@@ -8,14 +8,14 @@ public class RulesTests
     [Fact]
     public void Open_world_sources_are_always_shown()
     {
-        foreach (var kind in new[] { "world", "fate", "leve", "wanted", "questmob", "totem", "quest", "default" })
+        foreach (var kind in new[] { "world", "fate", "leve", "questmob", "totem", "quest", "default", "carnivale" })
             Assert.True(Kinds.Visible(S(kind), new HashSet<string>()), kind);
     }
 
     [Fact]
     public void Instances_hunts_and_maps_need_their_checkbox()
     {
-        foreach (var kind in new[] { "dungeon", "trial", "raid", "guildhest", "tdungeon", "map", "unknown" })
+        foreach (var kind in new[] { "dungeon", "trial", "raid", "guildhest", "tdungeon", "wanted", "map", "unknown" })
         {
             Assert.False(Kinds.Visible(S(kind), new HashSet<string>()), kind);
             Assert.True(Kinds.Visible(S(kind), new HashSet<string> { kind }), kind);
@@ -26,7 +26,6 @@ public class RulesTests
     public void B_rank_hunts_are_always_shown_but_A_and_S_ranks_wait_for_the_checkbox()
     {
         Assert.True(Kinds.Visible(S("hunt", "B"), new HashSet<string>()));
-        Assert.True(Kinds.Visible(S("carnivale"), new HashSet<string>()));
         Assert.False(Kinds.Visible(S("hunt", "A"), new HashSet<string>()));
         Assert.False(Kinds.Visible(S("hunt", "S"), new HashSet<string>()));
         Assert.True(Kinds.Visible(S("hunt", "S"), new HashSet<string> { "hunt" }));
@@ -133,6 +132,20 @@ public class RulesTests
         Assert.Equal("Loom,Bristle,Water Cannon", Names("no-desc"));
         Assert.Equal("Bristle,Loom,Water Cannon", Names("az"));
         Assert.Equal("Water Cannon,Loom,Bristle", Names("za"));
+    }
+
+    [Fact]
+    public void Wanted_targets_start_ticked_and_older_configs_are_upgraded_once()
+    {
+        var saved = new Dictionary<string, List<string>>();
+        Assert.Contains("wanted", KindSets.For(saved, "blu"));
+        Assert.False(KindSets.Upgrade(saved, 2));
+        saved["blu"] = new List<string>();
+        Assert.DoesNotContain("wanted", KindSets.For(saved, "blu"));
+        var old = new Dictionary<string, List<string>> { ["blu"] = new() { "dungeon" }, ["bst"] = new() { "wanted" } };
+        Assert.True(KindSets.Upgrade(old, 1));
+        Assert.Equal(new[] { "dungeon", "wanted" }, KindSets.For(old, "blu").OrderBy(k => k));
+        Assert.Equal(new[] { "wanted" }, KindSets.For(old, "bst"));
     }
 
     [Fact]

@@ -28,6 +28,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         this.pi = pi; this.commands = commands; this.framework = framework; this.clientState = clientState; this.log = log;
         Config = pi.GetPluginConfig() as Configuration ?? new Configuration();
+        if (Config.Upgrade()) SaveConfig();
         Data = CodexData.Load(pi, log);
         State = new CharacterState(pi, Game, log);
         Travel = new Travel(pi, clientState, objects, condition, data, Game, Config, log, chat);

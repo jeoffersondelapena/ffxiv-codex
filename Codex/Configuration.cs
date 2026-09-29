@@ -4,7 +4,7 @@ namespace Codex;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public string List { get; set; } = "blu";
     public Dictionary<string, List<string>> EnabledKinds { get; set; } = new();
     public Dictionary<string, bool> UnobtainedOnly { get; set; } = new();
@@ -15,8 +15,14 @@ public sealed class Configuration : IPluginConfiguration
     public bool ContinueAfterLeve { get; set; } = false;
     public float MountDistance { get; set; } = 15f;
 
-    public HashSet<string> KindsFor(string list)
-        => new(EnabledKinds.TryGetValue(list, out var v) ? v : new List<string>());
+    public HashSet<string> KindsFor(string list) => KindSets.For(EnabledKinds, list);
+
+    public bool Upgrade()
+    {
+        if (!KindSets.Upgrade(EnabledKinds, Version)) return false;
+        Version = 2;
+        return true;
+    }
 
     public void SetKind(string list, string kind, bool on)
     {
