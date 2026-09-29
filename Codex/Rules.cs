@@ -103,7 +103,8 @@ public static class Kinds
         foreach (var e in entries)
             foreach (var s in e.Sources)
                 if (IsOptIn(s)) present.Add(s.K);
-        return OptIn.Where(o => present.Contains(o.Key)).ToList();
+        // the row reads left to right the way the driver order ranks the kinds
+        return OptIn.Where(o => present.Contains(o.Key)).OrderBy(o => Rank(o.Key)).ToList();
     }
 
     public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null) => Driver(e, enabled, usable)?.Lv;

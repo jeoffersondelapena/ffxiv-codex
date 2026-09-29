@@ -58,12 +58,12 @@ public class RulesTests
     }
 
     [Fact]
-    public void Only_the_categories_a_list_uses_get_a_checkbox_in_the_trackers_order()
+    public void Only_the_categories_a_list_uses_get_a_checkbox_in_the_driver_order()
     {
         var plain = new Entry { Sources = { S("world"), S("hunt", "B") } };
-        var mixed = new Entry { Sources = { S("hunt", "A"), S("dungeon") } };
+        var mixed = new Entry { Sources = { S("hunt", "A"), S("dungeon"), S("unknown"), S("map") } };
         Assert.Empty(Kinds.PresentOptIn(new[] { plain }));
-        Assert.Equal(new[] { "dungeon", "hunt" }, Kinds.PresentOptIn(new[] { plain, mixed }).Select(o => o.Key));
+        Assert.Equal(new[] { "hunt", "map", "dungeon", "unknown" }, Kinds.PresentOptIn(new[] { plain, mixed }).Select(o => o.Key));
     }
 
     [Fact]
