@@ -99,7 +99,7 @@ public sealed class Travel
         var (x, y) = MapMath.WorldToMap(q.IssuerWorld[0], q.IssuerWorld[2], size, offX, offY);
         return new Source
         {
-            K = "questgiver", Name = game.NpcName(data, q.IssuerNpc), Loc = zone, Xy = new[] { x, y }, Terr = q.IssuerTerr, Map = q.IssuerMap,
+            K = "questgiver", QuestId = q.Id, Name = game.NpcName(data, q.IssuerNpc), Loc = zone, Xy = new[] { x, y }, Terr = q.IssuerTerr, Map = q.IssuerMap,
             Size = size, OffX = offX, OffY = offY, World = q.IssuerWorld, Note = why, Lv = q.Level,
         };
     }
@@ -108,13 +108,16 @@ public sealed class Travel
     public Source PlannedStop(Source source) => QuestStop(source) ?? NextStop(source);
 
     // whether a trip can start at all, and why not
-    public (bool Ok, string Why) CanGo(Source stop)
+    public (bool Ok, string Why) CanGo(Source stop, byte job)
     {
         if (Array.IndexOf(Kinds.Duties, stop.K) >= 0) return (false, "Inside a duty: queue for it instead");
         if (string.IsNullOrEmpty(stop.Loc) && !stop.HasMapPosition) return (false, "No location known");
         if (!lsBusy.HasFunction) return (false, "Lifestream is not loaded");
         if (stop.HasMapPosition && !navReady.HasFunction) return (false, "vnavmesh is not loaded");
         if (stop.Terr != 0 && !Attuned(stop.Terr)) return (false, $"No attuned aetheryte in {stop.Loc}");
+        // no point standing before a quest giver who will not hand the quest over yet
+        var gate = stop.QuestId != 0 ? game.QuestById(data, stop.QuestId) : game.LeveUnlock(data, stop.Npc);
+        if (gate != null && game.QuestBlocker(data, gate, job) is string blocked) return (false, $"'{gate.Name}' {blocked}");
         return (true, "");
     }
 
@@ -129,7 +132,7 @@ public sealed class Travel
         return false;
     }
 
-    public void Go(Source source, string entryName)
+    public void Go(Source source, string entryName, byte job)
     {
         Cancel();
         tapped = source;
@@ -143,7 +146,7 @@ public sealed class Travel
             target = null;
             return;
         }
-        var (ok, why) = CanGo(source);
+        var (ok, why) = CanGo(source, job);
         if (!ok)
         {
             chat.Print($"[Codex] {entryName}: {why}; the flag is on the map.");
@@ -194,7 +197,7 @@ public sealed class Travel
             // the leve shows as held while the levemete's last lines are still on screen; movement waits for the dialogue to close
             if (condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.Occupied]) return;
             awaitingLeve = null;
-            if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry); }
+            if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry, game.CurrentJob); }
             else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap {wait.Entry} again to go to the enemy.");
             return;
         }

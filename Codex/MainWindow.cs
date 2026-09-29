@@ -231,10 +231,11 @@ public sealed class MainWindow : Window
         if (ImGui.SmallButton($"Map##m{list}{e.Id}")) Flag(e, stop);
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(stop.HasMapPosition ? $"Flag {stop.Name} on the map" : "No map position known");
-        var (can, why) = plugin.Travel.CanGo(stop);
+        var job = list == "bst" ? (byte)43 : (byte)36;
+        var (can, why) = plugin.Travel.CanGo(stop, job);
         ImGui.TableNextColumn();
         ImGui.BeginDisabled(!can);
-        if (ImGui.SmallButton($"Go##g{list}{e.Id}")) { Flag(e, stop); EnsureJob(list); plugin.Travel.Go(best, e.Name); }
+        if (ImGui.SmallButton($"Go##g{list}{e.Id}")) { Flag(e, stop); EnsureJob(list); plugin.Travel.Go(best, e.Name, job); }
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(can ? $"Travel to {stop.Name}" + (stop.K == "questgiver" ? $" for {stop.Note}" : "") : why);
         ImGui.TableNextColumn();

@@ -86,14 +86,17 @@ public sealed unsafe class GameState
         return null;
     }
 
-    public sealed record QuestInfo(uint Id, string Name, bool Repeatable, int Level, uint IssuerNpc, float[]? IssuerWorld, uint IssuerTerr, uint IssuerMap);
+    public sealed record QuestInfo(uint Id, string Name, bool Repeatable, int Level, uint IssuerNpc, float[]? IssuerWorld, uint IssuerTerr, uint IssuerMap,
+                                   uint[] Previous, bool AnyPrevious);
 
     private Dictionary<string, QuestInfo>? questsByName;
+    private Dictionary<uint, QuestInfo>? questsById;
     private Dictionary<uint, QuestInfo>? leveUnlocksByNpc;
 
     private void LoadQuests(IDataManager data)
     {
         questsByName = new Dictionary<string, QuestInfo>();
+        questsById = new Dictionary<uint, QuestInfo>();
         leveUnlocksByNpc = new Dictionary<uint, QuestInfo>();
         var sheet = data.GetExcelSheet<Quest>();
         if (sheet == null) return;
@@ -104,9 +107,14 @@ public sealed unsafe class GameState
             if (key.Length == 0) continue;
             var at = q.IssuerLocation.ValueNullable;
             var placed = at is { } l && l.Territory.RowId != 0;
+            var previous = new List<uint>();
+            foreach (var prev in q.PreviousQuest) if (prev.RowId != 0) previous.Add(prev.RowId);
+            // join 2 means any one of the earlier quests opens this one; otherwise all of them must be done
             var info = new QuestInfo(q.RowId, name, q.IsRepeatable, q.ClassJobLevel[0], q.IssuerStart.RowId,
-                placed ? new[] { at!.Value.X, at.Value.Y, at.Value.Z } : null, placed ? at!.Value.Territory.RowId : 0, placed ? at!.Value.Map.RowId : 0);
+                placed ? new[] { at!.Value.X, at.Value.Y, at.Value.Z } : null, placed ? at!.Value.Territory.RowId : 0, placed ? at!.Value.Map.RowId : 0,
+                previous.ToArray(), q.PreviousQuestJoin == 2);
             questsByName.TryAdd(key, info);
+            questsById[q.RowId] = info;
             // a levemete offers nothing until that NPC's own "Leves of …" quest is done
             if (name.StartsWith("Leves of ", StringComparison.Ordinal)) leveUnlocksByNpc.TryAdd(q.IssuerStart.RowId, info);
         }
@@ -116,6 +124,37 @@ public sealed unsafe class GameState
     {
         if (questsByName == null) LoadQuests(data);
         return questsByName!.TryGetValue(Kinds.LeveKey(name), out var q) ? q : null;
+    }
+
+    public QuestInfo? QuestById(IDataManager data, uint id)
+    {
+        if (questsById == null) LoadQuests(data);
+        return questsById!.TryGetValue(id, out var q) ? q : null;
+    }
+
+    // what still keeps the character from taking the quest, or null when it can be taken
+    public string? QuestBlocker(IDataManager data, QuestInfo q, byte job)
+    {
+        if (q.Previous.Length > 0)
+        {
+            var done = q.Previous.Select(id => QuestManager.IsQuestComplete(id)).ToArray();
+            if (q.AnyPrevious ? !done.Any(d => d) : !done.All(d => d))
+            {
+                var first = q.Previous.Where((_, i) => !done[i]).Select(id => QuestById(data, id)?.Name ?? "an earlier quest").First();
+                return $"needs '{first}' first";
+            }
+        }
+        var level = JobLevel(data, job);
+        if (level >= 0 && level < q.Level) return $"needs level {q.Level} (now {level})";
+        return null;
+    }
+
+    public int JobLevel(IDataManager data, byte job)
+    {
+        var row = data.GetExcelSheet<ClassJob>()?.GetRowOrDefault(job);
+        var ps = PlayerState.Instance();
+        if (row == null || ps == null || row.Value.ExpArrayIndex < 0) return -1;
+        return ps->ClassJobLevels[row.Value.ExpArrayIndex];
     }
 
     // null while the quest is open; otherwise whether the game lets it be taken again
@@ -128,12 +167,16 @@ public sealed unsafe class GameState
         return qm != null && qm->IsQuestAccepted(id);
     }
 
-    public (string Name, int Level)? LeveLockedBy(IDataManager data, uint npc)
+    // that levemete's still-open "Leves of …" quest, or null once it is done (or the NPC is no levemete)
+    public QuestInfo? LeveUnlock(IDataManager data, uint npc)
     {
         if (npc == 0) return null;
         if (leveUnlocksByNpc == null) LoadQuests(data);
-        return leveUnlocksByNpc!.TryGetValue(npc, out var u) && !QuestManager.IsQuestComplete(u.Id) ? (u.Name, u.Level) : null;
+        return leveUnlocksByNpc!.TryGetValue(npc, out var u) && !QuestManager.IsQuestComplete(u.Id) ? u : null;
     }
+
+    public (string Name, int Level)? LeveLockedBy(IDataManager data, uint npc)
+        => LeveUnlock(data, npc) is { } u ? (u.Name, u.Level) : null;
 
     // the quest still standing between the character and this source, or null when it is open
     public QuestInfo? LockedBy(IDataManager data, Source s)
