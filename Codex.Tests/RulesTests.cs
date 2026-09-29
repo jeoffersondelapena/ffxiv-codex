@@ -135,6 +135,17 @@ public class RulesTests
     }
 
     [Fact]
+    public void Level_descending_puts_the_highest_first_and_keeps_number_order_within_a_level()
+    {
+        var a = new Entry { Id = 1, Name = "a" };
+        var b = new Entry { Id = 2, Name = "b" };
+        var c = new Entry { Id = 3, Name = "c" };
+        var levels = new Dictionary<int, int> { [1] = 10, [2] = 50, [3] = 50 };
+        Assert.Equal("b,c,a", string.Join(",", Kinds.Sorted(new[] { a, b, c }, e => e, e => levels[e.Id], "lv-desc").Select(e => e.Name)));
+        Assert.Contains(("lv-desc", "by level, descending"), Kinds.Sorts);
+    }
+
+    [Fact]
     public void Every_include_box_explains_itself()
     {
         foreach (var (key, _) in Kinds.OptIn)

@@ -109,6 +109,7 @@ public sealed class MainWindow : Window
         var groups = cfg.GroupByBand
             ? Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b, All: false)).ToList()
             : new List<(string Title, string Key, (int, int)? Band, bool All)>();
+        if (cfg.Sort == "lv-desc") groups.Reverse();
         groups.Add(cfg.GroupByBand ? ("Level unknown", "bandnone", null, false) : ("All levels", "all", null, true));
         foreach (var (title, key, band, all) in groups)
         {
@@ -131,10 +132,22 @@ public sealed class MainWindow : Window
             if (complete) ImGui.PopStyleColor();
             if (!open) continue;
             ImGui.Indent();
-            foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
+            // fixed widths for the optional cells keep every band aligned; the source column takes the rest
+            if (ImGui.BeginTable($"rows##{key}", 7, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
             {
-                if (unobtainedOnly && isDone) continue;
-                DrawEntry(list, e, shown, isDone, lv);
+                ImGui.TableSetupColumn("done", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("no", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("lv", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("min", ImGuiTableColumnFlags.WidthFixed, 52);
+                ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 220);
+                ImGui.TableSetupColumn("rank", ImGuiTableColumnFlags.WidthFixed, 44);
+                ImGui.TableSetupColumn("source", ImGuiTableColumnFlags.WidthStretch);
+                foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
+                {
+                    if (unobtainedOnly && isDone) continue;
+                    DrawEntry(list, e, shown, isDone, lv);
+                }
+                ImGui.EndTable();
             }
             ImGui.Unindent();
         }
@@ -181,6 +194,8 @@ public sealed class MainWindow : Window
 
     private void DrawEntry(string list, Entry e, List<Source> shown, bool done, int lv)
     {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
         if (list == "bst")
         {
             var tick = done;
@@ -190,27 +205,27 @@ public sealed class MainWindow : Window
         {
             ImGui.TextColored(done ? Green : Grey, done ? "[x]" : "[ ]");
         }
-        ImGui.SameLine();
+        ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"#{e.Id,3}");
         if (ImGui.IsItemHovered()) ImGui.SetTooltip(list == "bst" ? "Number in the Master's Bestiary" : "Number in the Blue Magic Spellbook");
-        ImGui.SameLine();
+        ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"Lv {lv,3}");
+        ImGui.TableNextColumn();
         if (e.MinLv > 1)
         {
-            ImGui.SameLine();
             ImGui.TextColored(Grey, $"min {e.MinLv}");
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Minimum level to obtain");
         }
-        ImGui.SameLine();
+        ImGui.TableNextColumn();
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
-        if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
+        if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}"))
             Tap(e, best);
         // read before the stars draw, or they take the hover and the name shows nothing
         var nameHovered = ImGui.IsItemHovered();
+        ImGui.TableNextColumn();
         if (e.Rank is > 0 and <= 5)
         {
-            ImGui.SameLine(0, 2);
             ImGui.TextColored(Amber, new string('*', e.Rank.Value));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank}");
         }
@@ -226,7 +241,7 @@ public sealed class MainWindow : Window
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
-        ImGui.SameLine();
+        ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
     }
 

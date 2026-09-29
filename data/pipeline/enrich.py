@@ -94,7 +94,8 @@ def main():
                         if loc not in zones: zones[loc] = zone_lookup(loc)
                         if zones[loc]: spot.update(zones[loc])
                         else: missing.add(loc)
-                    if spot is not s and not spot.get("xy") and spot.get("name") and spot.get("loc"):
+                    # a levemete is an NPC with an exact game position; the wiki's numbers are rounded to whole units
+                    if spot is not s and spot.get("name") and spot.get("loc"):
                         pos = npc_position(spot["name"], spot["loc"], npcs)
                         if pos: spot.update(pos)
     json.dump(npcs, open(NPC_CACHE, "w"), indent=1)

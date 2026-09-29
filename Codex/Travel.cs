@@ -97,7 +97,8 @@ public sealed class Travel
         chat.Print(zoneOnly ? $"[Codex] {entryName}: heading to {source.Loc}, where {source.Name} roams."
                  : ReferenceEquals(source, tapped!.Via) ? $"[Codex] {entryName}: heading to {source.Name}, the levemete, in {source.Loc} for '{tapped.Leve}'."
                  : $"[Codex] {entryName}: heading to {source.Name} in {source.Loc}.");
-        Queue($"tp {where}", Step.Teleporting, $"teleporting to {where}");
+        // `tp` only knows aetherytes; a bare shard name makes Lifestream teleport to that city and ride the aethernet
+        Queue(source.Tp != null ? source.Tp : $"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
     public void Cancel()

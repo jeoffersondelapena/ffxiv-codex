@@ -120,7 +120,7 @@ public static class Kinds
     }
 
     public static readonly (string Key, string Label)[] Sorts =
-        { ("lv", "by level"), ("no", "by number"), ("no-desc", "by number, descending"), ("az", "A to Z"), ("za", "Z to A") };
+        { ("lv", "by level"), ("lv-desc", "by level, descending"), ("no", "by number"), ("no-desc", "by number, descending"), ("az", "A to Z"), ("za", "Z to A") };
 
     // The tracker's search: the entry's name, or a shown source's name, place or note.
     public static bool Matches(Entry e, IEnumerable<Source> shown, string query)
@@ -134,6 +134,7 @@ public static class Kinds
     public static IEnumerable<T> Sorted<T>(IEnumerable<T> rows, Func<T, Entry> entry, Func<T, int> level, string sort)
         => sort switch
         {
+            "lv-desc" => rows.OrderByDescending(level).ThenBy(r => entry(r).Id),
             "no" => rows.OrderBy(r => entry(r).Id),
             "no-desc" => rows.OrderByDescending(r => entry(r).Id),
             "az" => rows.OrderBy(r => entry(r).Name, StringComparer.OrdinalIgnoreCase),
