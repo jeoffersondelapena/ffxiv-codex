@@ -64,8 +64,28 @@ public sealed unsafe class GameState
 
     private Dictionary<string, (uint Id, bool Repeatable)>? quests;
 
-    // each quest is played once, so a completed quest's enemy counts as spent even when the quest repeats
-    public bool QuestSpent(IDataManager data, string name) => QuestDone(data, name) != null;
+    private List<uint>? carnivale;
+
+    // stage N is the Nth Carnivale duty by content id; the clear flag is the one the duty list shows
+    public bool StageCleared(IDataManager data, int stage)
+    {
+        if (carnivale == null)
+        {
+            var sheet = data.GetExcelSheet<ContentFinderCondition>();
+            carnivale = sheet == null ? new List<uint>() : sheet
+                .Where(c => c.ContentLinkType == 1 && c.ContentType.ValueNullable?.Name.ExtractText().Contains("Masked Carnivale") == true)
+                .Select(c => c.Content.RowId).OrderBy(id => id).ToList();
+        }
+        return stage >= 1 && stage <= carnivale.Count && UIState.IsInstanceContentCompleted(carnivale[stage - 1]);
+    }
+
+    // why a source can no longer be used, or null while it is still open
+    public string? SpentLabel(IDataManager data, Source s)
+    {
+        if (Kinds.QuestOf(s) is string q) return QuestDone(data, q) is bool again ? (again ? "quest done, repeatable" : "quest done") : null;
+        if (Kinds.StageOf(s) is int stage) return StageCleared(data, stage) ? "stage cleared" : null;
+        return null;
+    }
 
     // null while the quest is open; otherwise whether the game lets it be taken again
     public bool? QuestDone(IDataManager data, string name)

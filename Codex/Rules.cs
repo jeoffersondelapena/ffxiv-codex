@@ -61,6 +61,10 @@ public static class Kinds
     public static string? QuestOf(Source s)
         => s.K == "questmob" && s.Note != null && s.Note.StartsWith("quest: ") ? s.Note["quest: ".Length..] : null;
 
+    // a Carnivale stage is played until cleared, then never again; the note carries the stage number
+    public static int? StageOf(Source s)
+        => s.K == "carnivale" && s.Note != null && s.Note.StartsWith("Stage ") && int.TryParse(s.Note["Stage ".Length..], out var n) ? n : null;
+
     // The tracker's category order; a list only shows the ones its sources use.
     public static readonly (string Key, string Label)[] OptIn =
     {
@@ -134,7 +138,7 @@ public static class Kinds
         "questmob" => "Quest enemy: appears only during that quest",
         "quest" => "Quest reward",
         "totem" => "Whalaqee totem: bought from Wayward Gaheel Ja once its requirement is met",
-        "carnivale" => "Masked Carnivale stage in Ul'dah; stages can be replayed, the learn is not guaranteed",
+        "carnivale" => "Masked Carnivale stage in Ul'dah; the learn is not guaranteed",
         "map" => "Treasure map: appears from the map's chest",
         "dungeon" or "trial" or "raid" or "guildhest" or "tdungeon" => "Inside that duty; the learn is guaranteed while level-synced",
         "world" => "Open world: always there",

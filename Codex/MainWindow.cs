@@ -98,7 +98,7 @@ public sealed class MainWindow : Window
         if (!plugin.State.Ready) { ImGui.TextColored(Grey, "Log in to see this character's progress."); return; }
 
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
-        Func<Source, bool> usable = s => Kinds.QuestOf(s) is not string q || !plugin.Game.QuestSpent(data, q);
+        Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable));
         var hidden = levelById.Count(kv => kv.Value == null);
         var obtained = doneById.Count(kv => kv.Value);
@@ -201,7 +201,7 @@ public sealed class MainWindow : Window
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Minimum level to obtain");
         }
         ImGui.SameLine();
-        Func<Source, bool> usable = s => Kinds.QuestOf(s) is not string q || !plugin.Game.QuestSpent(data, q);
+        Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
             Tap(e, best);
@@ -217,7 +217,7 @@ public sealed class MainWindow : Window
             var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
                 + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
-                + (Kinds.QuestOf(s) is string q && plugin.Game.QuestDone(data, q) is bool again ? (again ? " (quest done, repeatable)" : " (quest done)") : "")
+                + (plugin.Game.SpentLabel(data, s) is string spent ? $" ({spent})" : "")
                 + (s.Via != null ? $"\n       levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");

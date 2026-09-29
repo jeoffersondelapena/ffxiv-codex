@@ -176,4 +176,18 @@ public class RulesTests
         Assert.Same(world, Kinds.Driver(e, new HashSet<string>(), s => Kinds.QuestOf(s) == null));
         Assert.Equal("ancient wisdom", Kinds.LeveKey("Ancient Wisdom (Quest)"));
     }
+
+    [Fact]
+    public void A_carnivale_source_names_its_stage_and_is_skipped_once_cleared()
+    {
+        var stage = new Source { K = "carnivale", Name = "Azulmagia", Lv = 50, Note = "Stage 25" };
+        var world = new Source { K = "world", Name = "Gigas", Lv = 45 };
+        var e = new Entry { Sources = { world, stage } };
+        Assert.Equal(25, Kinds.StageOf(stage));
+        Assert.Null(Kinds.StageOf(world));
+        Assert.Null(Kinds.StageOf(new Source { K = "carnivale", Name = "x", Lv = 50 }));
+        var enabled = new HashSet<string> { "carnivale" };
+        Assert.Same(stage, Kinds.Driver(e, enabled));
+        Assert.Same(world, Kinds.Driver(e, enabled, s => Kinds.StageOf(s) == null));
+    }
 }
