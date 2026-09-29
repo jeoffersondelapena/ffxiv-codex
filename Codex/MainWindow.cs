@@ -93,6 +93,7 @@ public sealed class MainWindow : Window
             ImGui.SameLine();
             var on = enabled.Contains(key);
             if (ImGui.Checkbox(label, ref on)) { cfg.SetKind(list, key, on); plugin.SaveConfig(); enabled = cfg.KindsFor(list); }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(Kinds.IncludeTip(key));
         }
         ImGui.Separator();
         if (!plugin.State.Ready) { ImGui.TextColored(Grey, "Log in to see this character's progress."); return; }

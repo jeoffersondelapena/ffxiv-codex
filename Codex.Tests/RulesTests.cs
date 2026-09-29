@@ -135,17 +135,13 @@ public class RulesTests
     }
 
     [Fact]
-    public void Wanted_targets_start_ticked_and_older_configs_are_upgraded_once()
+    public void Every_include_box_explains_itself()
     {
-        var saved = new Dictionary<string, List<string>>();
-        Assert.Contains("wanted", KindSets.For(saved, "blu"));
-        Assert.False(KindSets.Upgrade(saved, 2));
-        saved["blu"] = new List<string>();
-        Assert.DoesNotContain("wanted", KindSets.For(saved, "blu"));
-        var old = new Dictionary<string, List<string>> { ["blu"] = new() { "dungeon" }, ["bst"] = new() { "wanted" } };
-        Assert.True(KindSets.Upgrade(old, 1));
-        Assert.Equal(new[] { "dungeon", "wanted" }, KindSets.For(old, "blu").OrderBy(k => k));
-        Assert.Equal(new[] { "wanted" }, KindSets.For(old, "bst"));
+        foreach (var (key, _) in Kinds.OptIn)
+            Assert.False(string.IsNullOrEmpty(Kinds.IncludeTip(key)), key);
+        Assert.Contains("allowance", Kinds.IncludeTip("wanted"));
+        Assert.Contains("B ranks", Kinds.IncludeTip("hunt"));
+        Assert.Equal("", Kinds.IncludeTip("world"));
     }
 
     [Fact]

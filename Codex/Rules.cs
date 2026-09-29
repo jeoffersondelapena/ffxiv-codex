@@ -40,9 +40,6 @@ public static class Kinds
 {
     public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "quest", "default", "carnivale" };
 
-    // boxes that start ticked: rare and luck-based, so worth a way out, but never hidden unasked
-    public static readonly string[] DefaultOn = { "wanted" };
-
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
     {
@@ -78,6 +75,21 @@ public static class Kinds
 
     public static readonly (int Lo, int Hi)[] Bands =
         { (1, 15), (16, 30), (31, 40), (41, 50), (51, 60), (61, 70), (71, 80), (81, 90), (91, 100) };
+
+    // one line per Include box, so the row explains itself on hover
+    public static string IncludeTip(string key) => key switch
+    {
+        "dungeon" => "Dungeon enemies. Party content; the learn is guaranteed while level-synced.",
+        "trial" => "Trial bosses. Party content; the learn is guaranteed while level-synced.",
+        "raid" => "Raid enemies. Party content; the learn is guaranteed while level-synced.",
+        "guildhest" => "Guildhest enemies. Party content; the learn is guaranteed while level-synced.",
+        "tdungeon" => "Enemies inside treasure-map dungeons. Needs a party and a lucky portal roll.",
+        "hunt" => "A- and S-rank marks. They spawn on long timers and are often contested. B ranks are always shown.",
+        "wanted" => "Rare enemies that may appear during leves of one level from one levemete. Whether one shows up is luck, and each try costs an allowance.",
+        "map" => "Enemies that spawn from treasure maps. Needs a map item and a lucky roll.",
+        "unknown" => "Entries the data has no location for.",
+        _ => "",
+    };
 
     public static bool IsOptIn(Source s)
         => s.K == "hunt" ? s.Rank != "B" : Array.IndexOf(AlwaysOn, s.K) < 0;
