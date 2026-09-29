@@ -38,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
         pi.UiBuilder.OpenConfigUi += Open;
         framework.Update += Travel.OnUpdate;
         clientState.Logout += OnLogout;
+        clientState.TerritoryChanged += OnTerritoryChanged;
         commands.AddHandler(Command, new CommandInfo(OnCommand) { HelpMessage = "Open Codex. '/codex reload' re-reads the data file, '/codex stop' cancels a trip." });
         log.Information("[Codex] Loaded");
     }
@@ -46,7 +47,10 @@ public sealed class Plugin : IDalamudPlugin
 
     private void Open() => main.IsOpen = true;
 
-    private void OnLogout(int type, int code) => State.Save();
+    private void OnLogout(int type, int code) { Travel.DropLeveWatch(); State.Save(); }
+
+    // an instance or another zone means the levemete trip is over
+    private void OnTerritoryChanged(uint territory) => Travel.DropLeveWatch();
 
     private void OnCommand(string command, string args)
     {
@@ -68,6 +72,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         commands.RemoveHandler(Command);
         clientState.Logout -= OnLogout;
+        clientState.TerritoryChanged -= OnTerritoryChanged;
         framework.Update -= Travel.OnUpdate;
         pi.UiBuilder.Draw -= windows.Draw;
         pi.UiBuilder.OpenMainUi -= Open;

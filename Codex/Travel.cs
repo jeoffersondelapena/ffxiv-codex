@@ -39,7 +39,7 @@ public sealed class Travel
     private Step afterSend = Step.Idle;
     private Source? target;
     private Source? tapped;
-    private (Source Source, string Entry, DateTime Since)? awaitingLeve;
+    private (Source Source, string Entry)? awaitingLeve;
     private bool leveWasLocked;
     private DateTime lastLevePoll;
     private string targetName = "";
@@ -78,7 +78,6 @@ public sealed class Travel
     public void Go(Source source, string entryName)
     {
         Cancel();
-        awaitingLeve = null;
         tapped = source;
         source = NextStop(source);
         target = source; targetName = entryName; lastReport = DateTime.MinValue;
@@ -102,8 +101,11 @@ public sealed class Travel
         Queue(source.Tp != null ? source.Tp : $"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
+    public void DropLeveWatch() { awaitingLeve = null; leveWasLocked = false; }
+
     public void Cancel()
     {
+        DropLeveWatch();
         if (step is Step.Walking or Step.Dismounting) { try { stop.InvokeAction(); } catch (IpcNotReadyError) { } }
         if (step != Step.Idle) log.Information("[Codex] Travel cancelled");
         step = Step.Idle; Status = ""; pending = null;
@@ -113,22 +115,15 @@ public sealed class Travel
     {
         if (step == Step.Idle && awaitingLeve is { } wait)
         {
-            // after a levemete trip: once the leve shows up as held, go on (or say so), for ten minutes
+            // after a levemete trip: once the leve shows up as held, go on (or say so); a stop, a zone change or a logout ends the watch
             if ((DateTime.Now - lastLevePoll).TotalSeconds < 1) return;
             lastLevePoll = DateTime.Now;
             if (leveWasLocked)
             {
-                // the unlock quest comes first; the ten minutes for the leve start once the levemete opens up
-                if (game.LeveLockedBy(data, wait.Source.Via!.Npc) != null)
-                {
-                    if ((DateTime.Now - wait.Since).TotalMinutes > 30) awaitingLeve = null;
-                    return;
-                }
+                // the unlock quest comes first
+                if (game.LeveLockedBy(data, wait.Source.Via!.Npc) != null) return;
                 leveWasLocked = false;
-                awaitingLeve = (wait.Source, wait.Entry, DateTime.Now);
-                return;
             }
-            if ((DateTime.Now - wait.Since).TotalMinutes > 10) { awaitingLeve = null; return; }
             if (!LeveHeld(wait.Source)) return;
             // the leve shows as held while the levemete's last lines are still on screen; movement waits for the dialogue to close
             if (condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.Occupied]) return;
@@ -281,7 +276,7 @@ public sealed class Travel
     {
         if (tapped != null && ReferenceEquals(target, tapped.Via))
         {
-            awaitingLeve = (tapped, targetName, DateTime.Now);
+            awaitingLeve = (tapped, targetName);
             var which = tapped.Leve != null ? $"'{tapped.Leve}'" : "a leve of the right level";
             var left = game.LeveAllowances;
             var locked = game.LeveLockedBy(data, target!.Npc);
