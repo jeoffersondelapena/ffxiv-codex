@@ -40,6 +40,7 @@ public sealed class Travel
     private Source? target;
     private Source? tapped;
     private (Source Source, string Entry, DateTime Since)? awaitingLeve;
+    private bool leveWasLocked;
     private DateTime lastLevePoll;
     private string targetName = "";
     private string? pending;
@@ -115,6 +116,18 @@ public sealed class Travel
             // after a levemete trip: once the leve shows up as held, go on (or say so), for ten minutes
             if ((DateTime.Now - lastLevePoll).TotalSeconds < 1) return;
             lastLevePoll = DateTime.Now;
+            if (leveWasLocked)
+            {
+                // the unlock quest comes first; the ten minutes for the leve start once the levemete opens up
+                if (game.LeveLockedBy(data, wait.Source.Via!.Npc) != null)
+                {
+                    if ((DateTime.Now - wait.Since).TotalMinutes > 30) awaitingLeve = null;
+                    return;
+                }
+                leveWasLocked = false;
+                awaitingLeve = (wait.Source, wait.Entry, DateTime.Now);
+                return;
+            }
             if ((DateTime.Now - wait.Since).TotalMinutes > 10) { awaitingLeve = null; return; }
             if (!LeveHeld(wait.Source)) return;
             // the leve shows as held while the levemete's last lines are still on screen; movement waits for the dialogue to close
@@ -272,6 +285,7 @@ public sealed class Travel
             var which = tapped.Leve != null ? $"'{tapped.Leve}'" : "a leve of the right level";
             var left = game.LeveAllowances;
             var locked = game.LeveLockedBy(data, target!.Npc);
+            leveWasLocked = locked != null;
             text += (locked is { } u ? $". {target.Name}'s leves stay locked until '{u.Name}' (level {u.Level}) is done; accept that quest here first, then {which}"
                                      : $". Accept {which} from {target.Name}") + (left >= 0 ? $" ({left} allowance(s) left)" : "")
                   + (config.ContinueAfterLeve ? "; Codex goes on once the leve is accepted" : ", then tap the entry again for the enemy");
