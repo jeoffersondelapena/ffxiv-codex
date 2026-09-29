@@ -4,6 +4,7 @@ using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility;
+using Lumina.Excel.Sheets;
 
 namespace Codex;
 
@@ -53,6 +54,18 @@ public sealed class MainWindow : Window
         var enabled = cfg.KindsFor(list);
         var unobtainedOnly = cfg.UnobtainedOnly.GetValueOrDefault(list);
         if (ImGui.Checkbox("Unobtained Only", ref unobtainedOnly)) { cfg.UnobtainedOnly[list] = unobtainedOnly; plugin.SaveConfig(); }
+        ImGui.SameLine();
+        var auto = cfg.AutoTravel;
+        if (ImGui.Checkbox("Auto travel", ref auto)) { cfg.AutoTravel = auto; plugin.SaveConfig(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("NPC and Enemy also switch to the list's job and travel there: the game's teleport, Lifestream for a city aethernet, a mount for long stretches, vnavmesh for the walk. Off: the map flag only.");
+        if (plugin.Travel.Active)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Amber, plugin.Travel.Status);
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Stop")) plugin.Travel.Cancel();
+        }
+        if (auto) DrawMountPicker();
         var query = search.GetValueOrDefault(list, "");
         ImGui.SetNextItemWidth(260);
         if (ImGui.InputTextWithHint("##search", "Search name, enemy or place", ref query, 128)) search[list] = query;
@@ -200,9 +213,10 @@ public sealed class MainWindow : Window
         var id = $"{list}{e.Id}";
         var npc = Kinds.NpcStop(best);
         var role = npc == null ? "" : ReferenceEquals(npc, best.Via) ? (best.Leve != null ? $", the levemete for '{best.Leve}'" : npc.Quest != null ? $", who gives '{npc.Quest}'" : "") : $", {Kinds.SourceLabel(best).ToLowerInvariant()}";
-        RowButton("NPC", id, npc != null, npc != null ? $"Flag {npc.Name} — {npc.Loc} {Coords(npc)}{role}" : "No one to see first: go straight to the enemy", () => Flag(e, npc!));
+        var verb = plugin.Config.AutoTravel ? "Travel to" : "Flag";
+        RowButton("NPC", id, npc != null, npc != null ? $"{verb} {npc.Name} — {npc.Loc} {Coords(npc)}{role}" : "No one to see first: go straight to the enemy", () => Visit(list, e, npc!));
         var enemy = Kinds.EnemyStop(best);
-        RowButton("Enemy", id, enemy != null, enemy != null ? $"Flag {enemy.Name} — {enemy.Loc} {Coords(enemy)}" + (best.Via != null ? " (after the NPC)" : "") : Kinds.NoEnemy(best), () => Flag(e, enemy!));
+        RowButton("Enemy", id, enemy != null, enemy != null ? $"{verb} {enemy.Name} — {enemy.Loc} {Coords(enemy)}" + (best.Via != null ? " (after the NPC)" : "") : Kinds.NoEnemy(best), () => Visit(list, e, enemy!));
         RowButton("Wiki", id, e.Wiki != null, e.Wiki != null ? "Open the wiki page in the browser" : "No wiki page known", () => OpenWiki(e));
         RowButton("Copy", id, e.Wiki != null, e.Wiki != null ? "Copy the wiki link" : "No wiki page known", () => { ImGui.SetClipboardText(e.Wiki!); chat.Print($"[Codex] Link copied: {e.Wiki}"); });
         ImGui.TableNextColumn();
@@ -220,7 +234,7 @@ public sealed class MainWindow : Window
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nNPC: whom to see first. Enemy: where it appears. Wiki and Copy: the page");
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nNPC: whom to see first. Enemy: where it appears" + (plugin.Config.AutoTravel ? " (both travel there)" : "") + ". Wiki and Copy: the page");
         }
     }
 
@@ -229,7 +243,46 @@ public sealed class MainWindow : Window
 
     private static string Coords(Source s) => s.Xy is { Length: 2 } ? $"({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "";
 
-    private void RowButton(string label, string id, bool enabled, string tip, Action act)
+    // the flag always; the trip only when asked for, and on the right job since the learn counts only there
+    private void Visit(string list, Entry e, Source stop)
+    {
+        Flag(e, stop);
+        if (!plugin.Config.AutoTravel) return;
+        EnsureJob(list);
+        plugin.Travel.Go(stop, e.Name);
+    }
+
+    private void EnsureJob(string list)
+    {
+        var (job, name) = list == "bst" ? ((byte)43, "Beastmaster") : ((byte)36, "Blue Mage");
+        if (plugin.Game.CurrentJob == job) return;
+        chat.Print(plugin.Game.EquipJob(job) ? $"[Codex] Switched to {name}." : $"[Codex] No gearset saved for {name}; save one and press again.");
+    }
+
+    private void DrawMountPicker()
+    {
+        var cfg = plugin.Config;
+        ImGui.TextColored(Grey, "Mount:");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(220);
+        if (ImGui.BeginCombo("##mount", MountName(cfg.MountId)))
+        {
+            if (ImGui.Selectable("Mount Roulette", cfg.MountId == 0)) { cfg.MountId = 0; plugin.SaveConfig(); }
+            foreach (var (id, name) in plugin.Game.UnlockedMounts(data))
+                if (ImGui.Selectable(name, cfg.MountId == id)) { cfg.MountId = id; plugin.SaveConfig(); }
+            ImGui.EndCombo();
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Used for the longer stretches; flies where the zone allows it.");
+    }
+
+    private string MountName(uint id)
+    {
+        if (id == 0) return "Mount Roulette";
+        var row = data.GetExcelSheet<Mount>()?.GetRowOrDefault(id);
+        return row == null ? "Mount Roulette" : GameState.TitleCase(row.Value.Singular.ExtractText());
+    }
+
+    private void RowButton(string label, string id, bool enabled, string tip, System.Action act)
     {
         ImGui.TableNextColumn();
         ImGui.BeginDisabled(!enabled);

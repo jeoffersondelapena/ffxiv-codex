@@ -24,6 +24,7 @@ public sealed class Source
     public Source? UnlockVia { get; set; }
     public uint Npc { get; set; }
     public string? Unlock { get; set; }
+    public float[]? World { get; set; }
 
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }

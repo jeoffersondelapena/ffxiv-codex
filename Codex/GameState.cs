@@ -1,6 +1,8 @@
+using System.Globalization;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 
 namespace Codex;
@@ -93,4 +95,65 @@ public sealed unsafe class GameState
     // the quest still standing between the character and this source, or null when it is open
     public QuestInfo? LockedBy(IDataManager data, Source s)
         => s.Unlock != null && Quest(data, s.Unlock) is { } q && !QuestManager.IsQuestComplete(q.Id) ? q : null;
+
+    public byte CurrentJob
+    {
+        get { var ps = PlayerState.Instance(); return ps == null ? (byte)0 : ps->CurrentClassJobId; }
+    }
+
+    // the first saved gearset of that job; false when there is none
+    public bool EquipJob(byte classJob)
+    {
+        var module = RaptureGearsetModule.Instance();
+        if (module == null) return false;
+        for (var i = 0; i < module->NumGearsets; i++)
+        {
+            var g = module->GetGearset(i);
+            if (g == null || !g->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists) || g->ClassJob != classJob) continue;
+            module->EquipGearset(i, 0);
+            return true;
+        }
+        return false;
+    }
+
+    public bool IsMountUnlocked(uint mountId)
+    {
+        var ps = PlayerState.Instance();
+        return mountId != 0 && ps != null && ps->IsMountUnlocked(mountId);
+    }
+
+    public bool FlyingUnlocked(uint aetherCurrentCompFlgSet)
+    {
+        var ps = PlayerState.Instance();
+        return aetherCurrentCompFlgSet != 0 && ps != null && ps->IsAetherCurrentZoneComplete(aetherCurrentCompFlgSet);
+    }
+
+    public bool CanUse(ActionType type, uint id)
+    {
+        var am = ActionManager.Instance();
+        return am != null && am->GetActionStatus(type, id) == 0;
+    }
+
+    public bool Use(ActionType type, uint id)
+    {
+        var am = ActionManager.Instance();
+        return am != null && am->UseAction(type, id);
+    }
+
+    public List<(uint Id, string Name)> UnlockedMounts(IDataManager data)
+    {
+        var list = new List<(uint Id, string Name)>();
+        var sheet = data.GetExcelSheet<Mount>();
+        if (sheet == null) return list;
+        foreach (var m in sheet)
+        {
+            var name = m.Singular.ExtractText();
+            if (name.Length == 0 || !IsMountUnlocked(m.RowId)) continue;
+            list.Add((m.RowId, TitleCase(name)));
+        }
+        list.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        return list;
+    }
+
+    public static string TitleCase(string s) => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
 }
