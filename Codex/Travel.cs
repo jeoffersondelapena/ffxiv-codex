@@ -39,7 +39,8 @@ public sealed class Travel
     private Step afterSend = Step.Idle;
     private Source? target;
     private Source? tapped;
-    private Source? levemeteVisited;
+    private (Source Source, string Entry, DateTime Since)? awaitingLeve;
+    private DateTime lastLevePoll;
     private string targetName = "";
     private string? pending;
     private bool zoneOnly;
@@ -68,11 +69,15 @@ public sealed class Travel
     public bool Active => step != Step.Idle;
     public string Status { get; private set; } = "";
 
-    public Source NextStop(Source source) => Kinds.NextStop(source, levemeteVisited);
+    public bool LeveHeld(Source source)
+        => source.Leve != null ? game.HasLeve(game.LeveId(data, source.Leve)) : game.HasAnyLeve();
+
+    public Source NextStop(Source source) => Kinds.NextStop(source, source.Via == null || LeveHeld(source));
 
     public void Go(Source source, string entryName)
     {
         Cancel();
+        awaitingLeve = null;
         tapped = source;
         source = NextStop(source);
         target = source; targetName = entryName; lastReport = DateTime.MinValue;
@@ -104,6 +109,18 @@ public sealed class Travel
 
     public void OnUpdate(IFramework framework)
     {
+        if (step == Step.Idle && awaitingLeve is { } wait)
+        {
+            // after a levemete trip: once the leve shows up as held, go on (or say so), for ten minutes
+            if ((DateTime.Now - lastLevePoll).TotalSeconds < 1) return;
+            lastLevePoll = DateTime.Now;
+            if ((DateTime.Now - wait.Since).TotalMinutes > 10) { awaitingLeve = null; return; }
+            if (!LeveHeld(wait.Source)) return;
+            awaitingLeve = null;
+            if (config.ContinueAfterLeve) { chat.Print($"[Codex] {wait.Entry}: leve accepted, heading to the enemy."); Go(wait.Source, wait.Entry); }
+            else chat.Print($"[Codex] {wait.Entry}: leve accepted. Tap it again to go to the enemy.");
+            return;
+        }
         if (step == Step.Idle || target == null) return;
         try
         {
@@ -248,10 +265,12 @@ public sealed class Travel
     {
         if (tapped != null && ReferenceEquals(target, tapped.Via))
         {
-            levemeteVisited = tapped;
-            text += $". Accept '{tapped.Leve}' from {target!.Name}, then tap {targetName} again for the enemy";
+            awaitingLeve = (tapped, targetName, DateTime.Now);
+            var which = tapped.Leve != null ? $"'{tapped.Leve}'" : "a leve of the right level";
+            var left = game.LeveAllowances;
+            text += $". Accept {which} from {target!.Name}" + (left >= 0 ? $" ({left} allowance(s) left)" : "")
+                  + (config.ContinueAfterLeve ? "; Codex goes on once it is accepted" : ", then tap the entry again for the enemy");
         }
-        else levemeteVisited = null;
         chat.Print($"[Codex] {text}.");
         log.Information($"[Codex] Travel done: {text}");
         step = Step.Idle; Status = ""; target = null;

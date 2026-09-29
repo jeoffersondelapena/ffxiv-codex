@@ -81,6 +81,10 @@ public sealed class MainWindow : Window
         ImGui.SameLine();
         var grouped = cfg.GroupByBand;
         if (ImGui.Checkbox("Group by band", ref grouped)) { cfg.GroupByBand = grouped; plugin.SaveConfig(); }
+        ImGui.SameLine();
+        var goOn = cfg.ContinueAfterLeve;
+        if (ImGui.Checkbox("Continue after a leve is accepted", ref goOn)) { cfg.ContinueAfterLeve = goOn; plugin.SaveConfig(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("After a trip to a levemete, travel on to the enemy by itself once the leve shows as accepted. Off: it says so and waits for your tap.");
         ImGui.TextColored(Grey, "Include:");
         var present = Kinds.PresentOptIn(entries);
         if (present.Count == 0) { ImGui.SameLine(); ImGui.TextColored(Grey, "nothing optional in this list"); }
@@ -210,7 +214,8 @@ public sealed class MainWindow : Window
             var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "")
                 + (s.Via != null ? $"\n    levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
-            var hints = shown.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct();
+            var hints = shown.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
+            if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
             ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
         ImGui.SameLine();

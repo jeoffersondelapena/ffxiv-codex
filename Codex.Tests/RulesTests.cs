@@ -131,11 +131,19 @@ public class RulesTests
     {
         var via = new Source { K = "leve", Name = "Kikiri", Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
         var leve = new Source { K = "leve", Name = "Battle Drake", Leve = "A Cold-blooded Business", Via = via, Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
-        Assert.Same(via, Kinds.NextStop(leve, null));
-        Assert.Same(leve, Kinds.NextStop(leve, leve));
+        Assert.Same(via, Kinds.NextStop(leve, leveHeld: false));
+        Assert.Same(leve, Kinds.NextStop(leve, leveHeld: true));
         var plain = new Source { K = "world", Name = "Sundrake" };
-        Assert.Same(plain, Kinds.NextStop(plain, null));
+        Assert.Same(plain, Kinds.NextStop(plain, leveHeld: false));
         var unplaced = new Source { K = "leve", Name = "Angry Sow", Via = new Source { Name = "somebody" } };
-        Assert.Same(unplaced, Kinds.NextStop(unplaced, null));
+        Assert.Same(unplaced, Kinds.NextStop(unplaced, leveHeld: false));
+    }
+
+    [Fact]
+    public void Wiki_leve_titles_match_the_games_names_without_their_suffixes()
+    {
+        Assert.Equal("goblin up sharlayan", Kinds.LeveKey("Goblin Up Sharlayan (L)"));
+        Assert.Equal("birds of a feather", Kinds.LeveKey("Birds of a Feather (Levequest)"));
+        Assert.Equal("reeking havoc", Kinds.LeveKey("Reeking Havoc"));
     }
 }

@@ -127,9 +127,13 @@ public static class Kinds
         _ => "",
     };
 
-    // A leve is accepted from its levemete first; the second tap on the same source goes to the enemy.
-    public static Source NextStop(Source s, Source? levemeteVisited)
-        => s.Via is { HasMapPosition: true } && !ReferenceEquals(levemeteVisited, s) ? s.Via : s;
+    // A leve is accepted from its levemete first; once the game says the leve is held, the tap goes to the enemy.
+    public static Source NextStop(Source s, bool leveHeld)
+        => s.Via is { HasMapPosition: true } && !leveHeld ? s.Via : s;
+
+    // wiki titles carry disambiguation the game's names do not
+    public static string LeveKey(string name)
+        => System.Text.RegularExpressions.Regex.Replace(name, @"\s*\((L|Levequest)\)\s*$", "").Trim().ToLowerInvariant();
 
     public static string SourceLabel(Source s)
         => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);

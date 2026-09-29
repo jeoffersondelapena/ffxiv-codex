@@ -21,6 +21,47 @@ public sealed unsafe class GameState
         return ui != null && ui->IsUnlockLinkUnlockedOrQuestCompleted((uint)unlockLink, 0, true);
     }
 
+    public bool HasLeve(ushort leveId)
+    {
+        var qm = QuestManager.Instance();
+        if (qm == null || leveId == 0) return false;
+        for (var i = 0; i < qm->LeveQuests.Length; i++)
+            if (qm->LeveQuests[i].LeveId == leveId) return true;
+        return false;
+    }
+
+    public bool HasAnyLeve()
+    {
+        var qm = QuestManager.Instance();
+        if (qm == null) return false;
+        for (var i = 0; i < qm->LeveQuests.Length; i++)
+            if (qm->LeveQuests[i].LeveId != 0) return true;
+        return false;
+    }
+
+    public int LeveAllowances
+    {
+        get { var qm = QuestManager.Instance(); return qm == null ? -1 : qm->NumLeveAllowances; }
+    }
+
+    private Dictionary<string, ushort>? leveIds;
+
+    public ushort LeveId(IDataManager data, string name)
+    {
+        if (leveIds == null)
+        {
+            leveIds = new Dictionary<string, ushort>();
+            var sheet = data.GetExcelSheet<Leve>();
+            if (sheet != null)
+                foreach (var row in sheet)
+                {
+                    var key = Kinds.LeveKey(row.Name.ExtractText());
+                    if (key.Length > 0) leveIds.TryAdd(key, (ushort)row.RowId);
+                }
+        }
+        return leveIds.TryGetValue(Kinds.LeveKey(name), out var id) ? id : (ushort)0;
+    }
+
     public bool IsMountUnlocked(uint mountId)
     {
         var ps = PlayerState.Instance();
