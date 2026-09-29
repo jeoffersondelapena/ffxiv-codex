@@ -68,7 +68,10 @@ public sealed class MainWindow : Window
         if (auto) DrawMountPicker();
         var query = search.GetValueOrDefault(list, "");
         ImGui.SetNextItemWidth(260);
-        if (ImGui.InputTextWithHint("##search", "Search name, enemy or place", ref query, 128)) search[list] = query;
+        if (ImGui.InputTextWithHint("##search", "Search name, enemy, place or kind", ref query, 128)) search[list] = query;
+        ImGui.SameLine(0, 2);
+        if (ImGui.SmallButton("x##clearsearch")) { search[list] = ""; query = ""; }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Clear the search");
         ImGui.SameLine();
         ImGui.TextColored(Grey, "Sort:");
         ImGui.SameLine();
@@ -247,6 +250,12 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
+    private static Vector3 WorldOf(Source s)
+    {
+        var (x, z) = MapMath.MapToWorld(s.Xy![0], s.Xy[1], s.Size, s.OffX, s.OffY);
+        return new Vector3(x, 0, z);
+    }
+
     private static string Coords(Source s) => s.Xy is { Length: 2 } ? $"({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "";
 
     // the flag always; the trip only when asked for, and on the right job since the learn counts only there
@@ -304,8 +313,14 @@ public sealed class MainWindow : Window
     {
         if (s.HasMapPosition)
         {
-            var ok = gameGui.OpenMapWithMapLink(new MapLinkPayload(s.Terr, s.Map, s.Xy![0], s.Xy[1], 0f));
-            log.Information($"[Codex] Flag for {e.Name}: {s.Name} in {s.Loc} ({s.Xy[0]:0.0}, {s.Xy[1]:0.0}), map {(ok ? "opened" : "did not open")}");
+            bool ok;
+            if (plugin.Config.AutoTravel)
+            {
+                var world = s.World is { Length: 3 } w ? new Vector3(w[0], w[1], w[2]) : WorldOf(s);
+                ok = plugin.Game.SetFlag(s.Terr, s.Map, world);
+            }
+            else ok = gameGui.OpenMapWithMapLink(new MapLinkPayload(s.Terr, s.Map, s.Xy![0], s.Xy[1], 0f));
+            log.Information($"[Codex] Flag for {e.Name}: {s.Name} in {s.Loc} ({s.Xy![0]:0.0}, {s.Xy[1]:0.0}), {(plugin.Config.AutoTravel ? "flag only" : "map opened")}{(ok ? "" : " (failed)")}");
         }
         else
         {

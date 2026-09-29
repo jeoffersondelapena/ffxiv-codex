@@ -156,6 +156,16 @@ public class RulesTests
     }
 
     [Fact]
+    public void The_search_also_matches_the_kind_of_a_shown_source()
+    {
+        var stage = new Source { K = "carnivale", Name = "Ultros", Loc = "Ul'dah - Steps of Thal", Note = "Stage 20: Miss Typhon" };
+        var e = new Entry { Name = "Aqua Breath", Sources = { stage } };
+        Assert.True(Kinds.Matches(e, new[] { stage }, "carnivale"));
+        Assert.True(Kinds.Matches(e, new[] { stage }, "typhon"));
+        Assert.False(Kinds.Matches(e, new[] { stage }, "totem"));
+    }
+
+    [Fact]
     public void Every_include_box_explains_itself()
     {
         foreach (var (key, _) in Kinds.OptIn)

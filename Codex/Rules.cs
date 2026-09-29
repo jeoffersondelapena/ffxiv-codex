@@ -135,7 +135,7 @@ public static class Kinds
         var q = query.Trim();
         if (q.Length == 0) return true;
         if (e.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) return true;
-        return shown.Any(s => $"{s.Name} {s.Loc} {s.Note}".Contains(q, StringComparison.OrdinalIgnoreCase));
+        return shown.Any(s => $"{s.Name} {s.Loc} {s.Note} {SourceLabel(s)}".Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
     public static IEnumerable<T> Sorted<T>(IEnumerable<T> rows, Func<T, Entry> entry, Func<T, int> level, string sort)

@@ -151,21 +151,21 @@ public sealed unsafe class Travel
         return found;
     }
 
-    // a marker's key is its Aetheryte row and its X/Y are map pixels
+    // an aethernet marker (type 4) keys the shard's place name, not its aetheryte row; its X/Y are map pixels
     private List<(string Name, Vector3 Pos)> MarkerShards(uint terr, Lumina.Excel.ExcelSheet<Aetheryte> aetherytes)
     {
         var found = new List<(string, Vector3)>();
         var map = data.GetExcelSheet<TerritoryType>()?.GetRowOrDefault(terr)?.Map.ValueNullable;
         var markers = data.GetSubrowExcelSheet<MapMarker>();
         if (map == null || markers == null || !markers.HasRow(map.Value.MapMarkerRange)) return found;
+        var byPlace = new Dictionary<uint, string>();
+        foreach (var a in aetherytes)
+            if (!a.IsAetheryte && a.AethernetName.RowId != 0 && a.AethernetName.ValueNullable?.Name.ExtractText() is { Length: > 0 } n)
+                byPlace.TryAdd(a.AethernetName.RowId, n);
         var c = map.Value.SizeFactor / 100f;
         foreach (var m in markers[map.Value.MapMarkerRange])
         {
-            if (m.DataType is not (3 or 4)) continue;
-            var a = aetherytes.GetRowOrDefault(m.DataKey.RowId);
-            if (a == null || a.Value.IsAetheryte) continue;
-            var name = a.Value.AethernetName.ValueNullable?.Name.ExtractText();
-            if (string.IsNullOrEmpty(name)) continue;
+            if (m.DataType != 4 || !byPlace.TryGetValue(m.DataKey.RowId, out var name)) continue;
             found.Add((name, new Vector3((m.X - 1024f) / c - map.Value.OffsetX, 0, (m.Y - 1024f) / c - map.Value.OffsetY)));
         }
         return found;

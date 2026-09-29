@@ -96,6 +96,15 @@ public sealed unsafe class GameState
     public QuestInfo? LockedBy(IDataManager data, Source s)
         => s.Unlock != null && Quest(data, s.Unlock) is { } q && !QuestManager.IsQuestComplete(q.Id) ? q : null;
 
+    // the flag alone, no map window: for a trip the map is noise
+    public bool SetFlag(uint terr, uint map, System.Numerics.Vector3 world)
+    {
+        var agent = FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentMap.Instance();
+        if (agent == null) return false;
+        agent->SetFlagMapMarker(terr, map, world, 60561);
+        return true;
+    }
+
     public byte CurrentJob
     {
         get { var ps = PlayerState.Instance(); return ps == null ? (byte)0 : ps->CurrentClassJobId; }
