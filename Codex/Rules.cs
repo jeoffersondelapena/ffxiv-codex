@@ -108,6 +108,23 @@ public static class Kinds
     public static string LevelText(Source s)
         => s.LvMax is int max && max != s.Lv ? $"Lv {s.Lv}-{max}" : $"Lv {s.Lv}";
 
+    // What a source kind takes, for the row tooltip; the tracker leaves this to the reader.
+    public static string Hint(string kind) => kind switch
+    {
+        "leve" => "Levequest: accept it from a levemete first (it uses an allowance); the enemy appears only while the leve runs",
+        "fate" => "FATE: the enemy appears only while the FATE is up",
+        "hunt" => "Hunt mark: roams the zone and spawns on a timer",
+        "questmob" => "Quest enemy: appears only during that quest",
+        "quest" => "Quest reward",
+        "totem" => "Whalaqee totem: bought from Wayward Gaheel Ja once its requirement is met",
+        "carnivale" => "Masked Carnivale stage in Ul'dah",
+        "map" => "Treasure map: appears from the map's chest",
+        "dungeon" or "trial" or "raid" or "guildhest" or "tdungeon" => "Inside that duty",
+        "world" => "Open world: always there",
+        "default" => "Known from the start",
+        _ => "",
+    };
+
     public static string SourceLabel(Source s)
         => s.K == "hunt" && !string.IsNullOrEmpty(s.Rank) ? $"{s.Rank}-rank hunt" : Label(s.K);
 

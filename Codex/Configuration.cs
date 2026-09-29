@@ -11,6 +11,7 @@ public sealed class Configuration : IPluginConfiguration
     public bool Travel { get; set; } = false;
     public uint MountId { get; set; } = 0;
     public string Sort { get; set; } = "lv";
+    public bool GroupByBand { get; set; } = true;
     public float MountDistance { get; set; } = 15f;
 
     public HashSet<string> KindsFor(string list)

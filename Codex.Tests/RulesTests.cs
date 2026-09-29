@@ -116,4 +116,13 @@ public class RulesTests
         Assert.Equal("Bristle,Loom,Water Cannon", Names("az"));
         Assert.Equal("Water Cannon,Loom,Bristle", Names("za"));
     }
+
+    [Fact]
+    public void Every_kind_the_lists_use_has_a_hint()
+    {
+        foreach (var kind in Kinds.AlwaysOn.Concat(Kinds.OptIn.Select(o => o.Key)).Where(k => k != "unknown"))
+            Assert.False(string.IsNullOrEmpty(Kinds.Hint(kind)), kind);
+        Assert.Contains("levemete", Kinds.Hint("leve"));
+        Assert.Equal("", Kinds.Hint("unknown"));
+    }
 }

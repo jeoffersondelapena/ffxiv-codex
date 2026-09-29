@@ -83,6 +83,8 @@ public sealed class Travel
             return;
         }
         var where = source.Tp ?? source.Loc!;
+        chat.Print(zoneOnly ? $"[Codex] {entryName}: heading to {source.Loc}, where {source.Name} roams."
+                            : $"[Codex] {entryName}: heading to {source.Name} in {source.Loc}.");
         Queue($"tp {where}", Step.Teleporting, $"teleporting to {where}");
     }
 
@@ -112,14 +114,17 @@ public sealed class Travel
                 case Step.Teleporting:
                     var moved = clientState.TerritoryType != startTerritory;
                     var busy = lsBusy.InvokeFunc();
-                    if (!busy && Elapsed() > 2 && (moved || (!zoneOnly && clientState.TerritoryType == target.Terr)))
+                    var there = zoneOnly ? moved : clientState.TerritoryType == target.Terr;
+                    if (!busy && Elapsed() > 2 && there)
                         AfterTeleport();
                     else if (!busy && !moved && Elapsed() > 10)
                     {
                         if (zoneOnly) Finish($"Lifestream did not travel; you may already be in {target.Loc}");
                         else Fail($"Lifestream did not start the teleport to '{target.Tp ?? target.Loc}'");
                     }
-                    else if (Elapsed() > 120) Fail("teleport did not complete in two minutes");
+                    else if (!busy && moved && !there && Elapsed() > 15)
+                        Fail($"Lifestream stopped in another zone instead of {target.Loc}");
+                    else if (Elapsed() > 180) Fail("teleport did not complete in three minutes");
                     break;
                 case Step.Aethernet:
                     if (!lsBusy.InvokeFunc() && Elapsed() > 2 && clientState.TerritoryType == target.Terr)
@@ -135,7 +140,7 @@ public sealed class Travel
                         floor = found.Value;
                         var player = objects.LocalPlayer?.Position;
                         var far = player != null && Vector3.Distance(player.Value, floor) > config.MountDistance;
-                        if (far && !Mounted && TryMount()) Enter(Step.Mounting, "mounting up");
+                        if (far && !Mounted) { lastAction = DateTime.MinValue; Enter(Step.Mounting, "mounting up"); }
                         else StartWalk();
                     }
                     else if ((DateTime.Now - lastReport).TotalSeconds > 5)
@@ -145,8 +150,10 @@ public sealed class Travel
                     }
                     break;
                 case Step.Mounting:
+                    // Right after a teleport the game refuses the mount for a moment; a city refuses it for good.
                     if (Mounted) StartWalk();
-                    else if (Elapsed() > 8) { log.Warning("[Codex] Travel: mount did not come up in time, walking"); StartWalk(); }
+                    else if (Elapsed() > 8) { log.Information("[Codex] Travel: no mount after 8 s (a city, or too soon after arriving); walking"); StartWalk(); }
+                    else if ((DateTime.Now - lastAction).TotalSeconds > 1) { TryMount(); lastAction = DateTime.Now; }
                     break;
                 case Step.Walking:
                     var pos = objects.LocalPlayer?.Position;
@@ -199,9 +206,7 @@ public sealed class Travel
     {
         var id = config.MountId;
         if (id != 0 && game.IsMountUnlocked(id) && game.CanUse(ActionType.Mount, id)) return game.Use(ActionType.Mount, id);
-        if (game.CanUse(ActionType.GeneralAction, MountRoulette)) return game.Use(ActionType.GeneralAction, MountRoulette);
-        log.Information("[Codex] Travel: mounting is not possible here, walking");
-        return false;
+        return game.CanUse(ActionType.GeneralAction, MountRoulette) && game.Use(ActionType.GeneralAction, MountRoulette);
     }
 
     private void StartWalk()
@@ -228,8 +233,8 @@ public sealed class Travel
 
     private void Report(string what)
     {
-        Status = what; lastReport = DateTime.Now;
-        log.Information($"[Codex] Travel: {what}");
+        Status = $"{targetName}: {what}"; lastReport = DateTime.Now;
+        log.Information($"[Codex] Travel ({targetName}): {what}");
     }
 
     private void Finish(string text)

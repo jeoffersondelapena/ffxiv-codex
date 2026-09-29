@@ -78,6 +78,9 @@ public sealed class MainWindow : Window
                 if (ImGui.Selectable(label, cfg.Sort == key)) { cfg.Sort = key; plugin.SaveConfig(); }
             ImGui.EndCombo();
         }
+        ImGui.SameLine();
+        var grouped = cfg.GroupByBand;
+        if (ImGui.Checkbox("Group by band", ref grouped)) { cfg.GroupByBand = grouped; plugin.SaveConfig(); }
         ImGui.TextColored(Grey, "Include:");
         var present = Kinds.PresentOptIn(entries);
         if (present.Count == 0) { ImGui.SameLine(); ImGui.TextColored(Grey, "nothing optional in this list"); }
@@ -97,15 +100,17 @@ public sealed class MainWindow : Window
         var summary = Progress.Summary(obtained, entries.Count, hidden);
         if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, summary); else ImGui.Text(summary);
         ImGui.Spacing();
-        var groups = Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b)).ToList();
-        groups.Add(("Level unknown", "bandnone", null));
-        foreach (var (title, key, band) in groups)
+        var groups = cfg.GroupByBand
+            ? Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b, All: false)).ToList()
+            : new List<(string Title, string Key, (int, int)? Band, bool All)>();
+        groups.Add(cfg.GroupByBand ? ("Level unknown", "bandnone", null, false) : ("All levels", "all", null, true));
+        foreach (var (title, key, band, all) in groups)
         {
             var rows = new List<(Entry Entry, List<Source> Shown, bool Done, int Lv)>();
             foreach (var e in entries)
             {
                 if (levelById[e.Id] is not int lv) continue;
-                var inBand = band is (int lo, int hi) ? lv >= lo && lv <= hi : Kinds.BandOf(lv) == null;
+                var inBand = all || (band is (int lo, int hi) ? lv >= lo && lv <= hi : Kinds.BandOf(lv) == null);
                 if (!inBand) continue;
                 var shownSources = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
                 if (!Kinds.Matches(e, shownSources, query)) continue;
@@ -180,6 +185,9 @@ public sealed class MainWindow : Window
             ImGui.TextColored(done ? Green : Grey, done ? "[x]" : "[ ]");
         }
         ImGui.SameLine();
+        ImGui.TextColored(Grey, $"#{e.Id,3}");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(list == "bst" ? "Number in the Master's Bestiary" : "Number in the Blue Magic Spellbook");
+        ImGui.SameLine();
         ImGui.TextColored(Grey, $"Lv {lv,3}");
         if (e.MinLv > 1)
         {
@@ -201,7 +209,8 @@ public sealed class MainWindow : Window
         {
             var lines = shown.Select(s => $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : ""));
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
+            var hints = shown.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct();
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap: map flag" + (plugin.Config.Travel ? " and travel" : ""));
         }
         ImGui.SameLine();
         ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
