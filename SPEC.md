@@ -20,7 +20,10 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 - Window per list (Blue Magic, Beasts): an overall line at the top ("N of T obtained, P%", floored, plus how many entries the Include filters hide), band groups, entries with level and check mark, "Unobtained Only" filter, the opt-in category checkboxes, a band shows complete when everything shown in it is done ("look at the next band"), search optional.
 - A search box (name, enemy or place, like the tracker) and the sort options (by level both ways, by number both ways, A to Z, Z to A; level descending also reverses the band order) sit above the Include row. Rows are a table with fixed columns (done, number, level, min, name, rank, source), so bands stay aligned whatever a row shows. Ticking or unticking a beast asks for confirmation first, since those ticks are by hand.
 - Each entry is driven by one source, chosen by the source order below, lowest level within the kind; that source sets the level and band, the flag and the trip. This departs from the tracker's lowest-level rule on purpose (2026-09-29): a rare level-1 wanted target must not outrank a plain open-world mob at a higher level. Previously: an entry sat at its lowest visible source, with a "min N" badge for the wiki's minimum level to obtain when above 1; entries whose level has no band land under "Level unknown". Hunt sources are labelled by rank ("B-rank hunt").
-- Whalaqee totems point at Wayward Gaheel Ja (Ul'dah - Steps of Thal 12.5, 12.9); the trip is one Lifestream command, the bare shard name `Weavers' Guild` (Lifestream's `tp` resolves aetherytes only; a bare name takes its teleport-then-aethernet path), then walks.
+- Whalaqee totems point at Wayward Gaheel Ja, Carnivale stages at the Celestium attendant (both Ul'dah - Steps of Thal), gourds at the Kornago merchant (Central Shroud); each is placed at the game's own NPC position with its height (`world`), since a top-down floor search in a layered city lands the walk on the wrong level. The totem trip is one Lifestream command, the bare shard name `Weavers' Guild` (Lifestream's `tp` resolves aetherytes only; a bare name takes its teleport-then-aethernet path), then walks.
+- Each row has a Map and a Go button beside the name, greyed with the reason when they cannot work (no map position; inside a duty; Lifestream or vnavmesh not loaded; no attuned aetheryte in that zone). The name tap keeps doing both when "Travel On Tap" is on. A trip first puts on the list's job (Blue Mage or Beastmaster) through the first saved gearset of that job, and says so, or says that none is saved.
+- A walk that reaches nothing (no path, or no movement for ten seconds) stops and says how far it got instead of claiming arrival; the flag stays on the map.
+- The controls above the list stay put; only the list scrolls.
 - Each row shows its number in the Blue Magic Spellbook or the Master's Bestiary; a "Group by band" toggle flattens the list; the tooltip explains what each source kind takes (levemete, FATE up, hunt timer, duty).
 - Leve sources carry the levemete (the leve page's quest giver, placed at the game's own NPC position since 2026-09-29; the wiki's coordinates are rounded to whole units, which once put a flag 40 yalms from K'leytai) as a first stop, with the NPC's id. A levemete offers nothing until that NPC's "Leves of …" quest is done (Quest sheet by issuer, completion from the game; since 2026-09-29): the arrival line then names the quest and its level, and the tooltip marks the levemete as locked. Which stop a tap takes is decided by the game: while the leve is not held (QuestManager's active leves, matched by name; any active leve for a wanted target), the tap goes to the levemete and names the leve and the allowances left; once held, to the enemy. After a levemete trip Codex watches for the leve to show as held (one cheap read of the held-leve slots per second) and then goes on to the enemy when "Continue after a leve is accepted" is on (default) or says so; the watch has no timer and ends on /codex stop, the Stop button, a zone change (an instance counts), a logout, or a new trip (2026-09-29: timers were dropped as arbitrary).
 - Travel names the entry in its status and chat lines; after arriving it retries the mount for up to 8 s, since the game refuses one right after a teleport.
@@ -38,27 +41,30 @@ A. Sure and free: certain, and it comes without a trip.
 1. Known from the start (`default`)
 2. Quest reward (`quest`)
 3. Totem (`totem`): a one-spell item unlocked by spell-count and Carnivale achievements; nothing is spent.
+4. Kornago gourd (`gourd`, beasts only): bought from the Kornago merchant in Central Shroud with Remnants of Resilience from the Crucible of the Unbroken, which "Into the Crucible" (level 30) opens. Sure, and paid with what Crucible runs give anyway.
 No entry has two of these, so the order inside the group never decides anything.
 
 B. Free roll: a chance, but on a trip made once anyway, so the attempt costs nothing extra. Spent after that visit; the row then shows its next source.
-4. Quest enemy (`questmob`): spent when the quest is complete, repeatable or not, since each quest is played once.
-5. Masked Carnivale (`carnivale`): spent when the stage's clear flag is set, since stages are played until cleared and never replayed. The learn there is not guaranteed even though stages are synced.
+5. Quest enemy (`questmob`): spent when the quest is complete, repeatable or not, since each quest is played once.
+6. Masked Carnivale (`carnivale`): spent when the stage's clear flag is set, since stages are played until cleared and never replayed. The learn there is not guaranteed even though stages are synced.
 No entry has both.
 
 C. Grind: a chance, and it costs time or allowances. Ordered by what annoys least.
-6. Open world (`world`): nothing spent, only spawn and cast waits.
-7. Levequest (`leve`): an allowance per try, but no waiting. Spending beats waiting.
-8. FATE (`fate`): wait for the spawn.
-9. Hunt mark (`hunt`): wait for the timer and compete. B ranks wait less but still wait, so they share the slot.
-10. Wanted target (`wanted`): luck whether it appears at all, plus an allowance per try.
-11. Treasure map (`map`): a map item plus a lucky roll for the mob.
+7. Open world (`world`): nothing spent, only spawn and cast waits.
+8. Levequest (`leve`): an allowance per try, but no waiting. Spending beats waiting.
+9. FATE (`fate`): wait for the spawn.
+10. Hunt mark (`hunt`): wait for the timer and compete. B ranks wait less but still wait, so they share the slot.
+11. Wanted target (`wanted`): luck whether it appears at all, plus an allowance per try.
+12. Treasure map (`map`): a map item plus a lucky roll for the mob.
 
 D. Party content: the one sure learn on a synced kill, but solo play makes it second last. Ordered by how hard it is to get in.
-12. Dungeon (`dungeon`), 13. Trial (`trial`), 14. Raid (`raid`), 15. Guildhest (`guildhest`), 16. Treasure dungeon (`tdungeon`)
+13. Dungeon (`dungeon`), 14. Trial (`trial`), 15. Raid (`raid`), 16. Guildhest (`guildhest`), 17. Treasure dungeon (`tdungeon`)
 
 E. Location unknown (`unknown`): nowhere to send anyone. Last.
 
 **Include row.** Which kinds count at all. Always on, no box: groups A and B, open world, levequest, FATE, and B-rank hunts. Opt-in, one box each, laid out in the driver order: A/S-rank hunts, Wanted targets, Treasure maps, Dungeons, Trials, Raids, Guildhests, Treasure dungeons, Location unknown. They are opt-in because they need a party or lean on luck with a cost attached, so they may never be wanted. B ranks stay on because the wait is short and nobody contests them. Every box has a hover tooltip; a list shows only the boxes for kinds it has.
+
+**Locks.** A source can carry an unlock quest (`unlock`: the Carnivale stages need "The Real Folk Blues", 26-30 "Blue Scream of Death", 31 "Master of Mimicry", 32 "A New Gold Standard"; every gourd needs "Into the Crucible"). While the character has not completed it, the source is *locked*: it still drives a row when nothing open is left (so the row says what to do next), never ahead of an open source, and the tooltip marks it "(locked: 'quest', level N)". A trip to a locked source, or to a quest enemy whose quest is not yet taken, goes to the quest giver instead (Quest sheet issuer, at the game's own position) and says why.
 
 **On top.** A spent or unincluded source never drives a row but stays in the tooltip, labelled "(quest done)", "(quest done, repeatable)", "(stage cleared)" or "(not included)". The tooltip lists every source in this order with the driver marked.
 

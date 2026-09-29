@@ -96,6 +96,7 @@ public class RulesTests
         Assert.True(Kinds.Rank("leve") < Kinds.Rank("fate"));
         Assert.True(Kinds.Rank("world") < Kinds.Rank("wanted"));
         Assert.True(Kinds.Rank("questmob") < Kinds.Rank("carnivale") && Kinds.Rank("carnivale") < Kinds.Rank("world"));
+        Assert.True(Kinds.Rank("totem") < Kinds.Rank("gourd") && Kinds.Rank("gourd") < Kinds.Rank("questmob"));
         Assert.True(Kinds.Rank("dungeon") < Kinds.Rank("unknown"));
         Assert.Equal(Kinds.Order.Length, Kinds.Rank("nonsense"));
     }
@@ -143,6 +144,20 @@ public class RulesTests
         var levels = new Dictionary<int, int> { [1] = 10, [2] = 50, [3] = 50 };
         Assert.Equal("b,c,a", string.Join(",", Kinds.Sorted(new[] { a, b, c }, e => e, e => levels[e.Id], "lv-desc").Select(e => e.Name)));
         Assert.Contains(("lv-desc", "by level, descending"), Kinds.Sorts);
+    }
+
+    [Fact]
+    public void A_locked_source_drives_only_when_nothing_open_is_left()
+    {
+        var stage = new Source { K = "carnivale", Name = "Azulmagia", Lv = 50, Note = "Stage 25", Unlock = "The Real Folk Blues" };
+        var world = new Source { K = "world", Name = "Gigas", Lv = 45 };
+        var both = new Entry { Sources = { world, stage } };
+        var only = new Entry { Sources = { stage } };
+        Func<Source, bool> locked = s => s.Unlock != null;
+        Assert.Same(stage, Kinds.Driver(both, new HashSet<string>()));
+        Assert.Same(world, Kinds.Driver(both, new HashSet<string>(), null, locked));
+        Assert.Same(stage, Kinds.Driver(only, new HashSet<string>(), null, locked));
+        Assert.Equal(50, Kinds.ShownLevel(only, new HashSet<string>(), null, locked));
     }
 
     [Fact]

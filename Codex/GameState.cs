@@ -2,6 +2,7 @@ using System.Globalization;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 
 namespace Codex;
@@ -62,8 +63,6 @@ public sealed unsafe class GameState
         return leveIds.TryGetValue(Kinds.LeveKey(name), out var id) ? id : (ushort)0;
     }
 
-    private Dictionary<string, (uint Id, bool Repeatable)>? quests;
-
     private List<uint>? carnivale;
 
     // stage N is the Nth Carnivale duty by content id; the clear flag is the one the duty list shows
@@ -87,43 +86,83 @@ public sealed unsafe class GameState
         return null;
     }
 
-    private Dictionary<uint, (string Name, uint Id, int Level)>? leveUnlocks;
+    public sealed record QuestInfo(uint Id, string Name, bool Repeatable, int Level, uint IssuerNpc, float[]? IssuerWorld, uint IssuerTerr, uint IssuerMap);
 
-    // a levemete offers nothing until that NPC's own "Leves of …" quest is done
-    public (string Name, int Level)? LeveLockedBy(IDataManager data, uint npc)
+    private Dictionary<string, QuestInfo>? questsByName;
+    private Dictionary<uint, QuestInfo>? leveUnlocksByNpc;
+
+    private void LoadQuests(IDataManager data)
     {
-        if (npc == 0) return null;
-        if (leveUnlocks == null)
+        questsByName = new Dictionary<string, QuestInfo>();
+        leveUnlocksByNpc = new Dictionary<uint, QuestInfo>();
+        var sheet = data.GetExcelSheet<Quest>();
+        if (sheet == null) return;
+        foreach (var q in sheet)
         {
-            leveUnlocks = new Dictionary<uint, (string, uint, int)>();
-            var sheet = data.GetExcelSheet<Quest>();
-            if (sheet != null)
-                foreach (var q in sheet)
-                {
-                    var name = q.Name.ExtractText();
-                    if (name.StartsWith("Leves of ", StringComparison.Ordinal))
-                        leveUnlocks.TryAdd(q.IssuerStart.RowId, (name, q.RowId, q.ClassJobLevel[0]));
-                }
+            var name = q.Name.ExtractText();
+            var key = Kinds.LeveKey(name);
+            if (key.Length == 0) continue;
+            var at = q.IssuerLocation.ValueNullable;
+            var placed = at is { } l && l.Territory.RowId != 0;
+            var info = new QuestInfo(q.RowId, name, q.IsRepeatable, q.ClassJobLevel[0], q.IssuerStart.RowId,
+                placed ? new[] { at!.Value.X, at.Value.Y, at.Value.Z } : null, placed ? at!.Value.Territory.RowId : 0, placed ? at!.Value.Map.RowId : 0);
+            questsByName.TryAdd(key, info);
+            // a levemete offers nothing until that NPC's own "Leves of …" quest is done
+            if (name.StartsWith("Leves of ", StringComparison.Ordinal)) leveUnlocksByNpc.TryAdd(q.IssuerStart.RowId, info);
         }
-        return leveUnlocks.TryGetValue(npc, out var u) && !QuestManager.IsQuestComplete(u.Id) ? (u.Name, u.Level) : null;
+    }
+
+    public QuestInfo? Quest(IDataManager data, string name)
+    {
+        if (questsByName == null) LoadQuests(data);
+        return questsByName!.TryGetValue(Kinds.LeveKey(name), out var q) ? q : null;
     }
 
     // null while the quest is open; otherwise whether the game lets it be taken again
     public bool? QuestDone(IDataManager data, string name)
+        => Quest(data, name) is { } q && QuestManager.IsQuestComplete(q.Id) ? q.Repeatable : null;
+
+    public bool QuestAccepted(uint id)
     {
-        if (quests == null)
+        var qm = QuestManager.Instance();
+        return qm != null && qm->IsQuestAccepted(id);
+    }
+
+    public (string Name, int Level)? LeveLockedBy(IDataManager data, uint npc)
+    {
+        if (npc == 0) return null;
+        if (leveUnlocksByNpc == null) LoadQuests(data);
+        return leveUnlocksByNpc!.TryGetValue(npc, out var u) && !QuestManager.IsQuestComplete(u.Id) ? (u.Name, u.Level) : null;
+    }
+
+    // the quest still standing between the character and this source, or null when it is open
+    public QuestInfo? LockedBy(IDataManager data, Source s)
+        => s.Unlock != null && Quest(data, s.Unlock) is { } q && !QuestManager.IsQuestComplete(q.Id) ? q : null;
+
+    public string NpcName(IDataManager data, uint npc)
+    {
+        var row = data.GetExcelSheet<ENpcResident>()?.GetRowOrDefault(npc);
+        return row == null ? "the quest giver" : TitleCase(row.Value.Singular.ExtractText());
+    }
+
+    public byte CurrentJob
+    {
+        get { var ps = PlayerState.Instance(); return ps == null ? (byte)0 : ps->CurrentClassJobId; }
+    }
+
+    // the first saved gearset of that job; false when there is none
+    public bool EquipJob(byte classJob)
+    {
+        var module = RaptureGearsetModule.Instance();
+        if (module == null) return false;
+        for (var i = 0; i < module->NumGearsets; i++)
         {
-            quests = new Dictionary<string, (uint, bool)>();
-            var sheet = data.GetExcelSheet<Quest>();
-            if (sheet != null)
-                foreach (var q in sheet)
-                {
-                    var key = Kinds.LeveKey(q.Name.ExtractText());
-                    if (key.Length > 0) quests.TryAdd(key, (q.RowId, q.IsRepeatable));
-                }
+            var g = module->GetGearset(i);
+            if (g == null || !g->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists) || g->ClassJob != classJob) continue;
+            module->EquipGearset(i, 0);
+            return true;
         }
-        if (!quests.TryGetValue(Kinds.LeveKey(name), out var found) || !QuestManager.IsQuestComplete(found.Id)) return null;
-        return found.Repeatable;
+        return false;
     }
 
     public bool IsMountUnlocked(uint mountId)

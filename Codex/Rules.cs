@@ -23,6 +23,8 @@ public sealed class Source
     public string? Leve { get; set; }
     public Source? Via { get; set; }
     public uint Npc { get; set; }
+    public float[]? World { get; set; }
+    public string? Unlock { get; set; }
 
     public bool HasMapPosition => Terr != 0 && Map != 0 && Xy is { Length: 2 };
 }
@@ -39,12 +41,13 @@ public sealed class Entry
 
 public static class Kinds
 {
-    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "quest", "default", "carnivale" };
+    public static readonly string[] AlwaysOn = { "world", "fate", "leve", "questmob", "totem", "gourd", "quest", "default", "carnivale" };
+    public static readonly string[] Duties = { "dungeon", "trial", "raid", "guildhest", "tdungeon" };
 
     // given things first, then certainty, then waiting, then luck; party content second last
     public static readonly string[] Order =
     {
-        "default", "quest", "totem", "questmob", "carnivale", "world", "leve", "fate", "hunt", "wanted", "map",
+        "default", "quest", "totem", "gourd", "questmob", "carnivale", "world", "leve", "fate", "hunt", "wanted", "map",
         "dungeon", "trial", "raid", "guildhest", "tdungeon", "unknown",
     };
 
@@ -55,8 +58,20 @@ public static class Kinds
     }
 
     // The source that drives a row: first kind in the order with a visible, still usable source, lowest level within it.
-    public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null)
-        => e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).FirstOrDefault();
+    // A locked source stays the plan, but not while an open one exists.
+    public static Source? Driver(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null, Func<Source, bool>? locked = null)
+    {
+        var pool = e.Sources.Where(s => Visible(s, enabled) && (usable == null || usable(s))).OrderBy(s => Rank(s.K)).ThenBy(s => s.Lv).ToList();
+        return pool.FirstOrDefault(s => locked == null || !locked(s)) ?? pool.FirstOrDefault();
+    }
+
+    // what an unlock quest opens, for the trip's wording
+    public static string Opens(Source s) => s.K switch
+    {
+        "carnivale" => "that Carnivale stage",
+        "gourd" => "the Kornago gourds",
+        _ => "this source",
+    };
 
     // a quest enemy exists only while its quest runs; the note carries the quest's name
     public static string? QuestOf(Source s)
@@ -108,7 +123,7 @@ public static class Kinds
         return OptIn.Where(o => present.Contains(o.Key)).OrderBy(o => Rank(o.Key)).ToList();
     }
 
-    public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null) => Driver(e, enabled, usable)?.Lv;
+    public static int? ShownLevel(Entry e, HashSet<string> enabled, Func<Source, bool>? usable = null, Func<Source, bool>? locked = null) => Driver(e, enabled, usable, locked)?.Lv;
 
     public static string Label(string kind)
     {
@@ -116,7 +131,7 @@ public static class Kinds
         return kind switch
         {
             "world" => "Open world", "fate" => "FATE", "leve" => "Levequest", "wanted" => "Wanted target", "questmob" => "Quest enemy",
-            "totem" => "Whalaqee totem", "quest" => "Quest reward", "default" => "Known from the start", _ => kind,
+            "totem" => "Whalaqee totem", "gourd" => "Kornago gourd", "quest" => "Quest reward", "questgiver" => "Quest giver", "default" => "Known from the start", _ => kind,
         };
     }
 
@@ -156,7 +171,8 @@ public static class Kinds
         "questmob" => "Quest enemy: appears only during that quest",
         "quest" => "Quest reward",
         "totem" => "Whalaqee totem: bought from Wayward Gaheel Ja once its requirement is met",
-        "carnivale" => "Masked Carnivale stage in Ul'dah; the learn is not guaranteed",
+        "gourd" => "Kornago gourd: bought from the Kornago merchant in Central Shroud with Remnants of Resilience from the Crucible of the Unbroken",
+        "carnivale" => "Masked Carnivale stage, entered at the Celestium in Ul'dah; the learn is not guaranteed",
         "map" => "Treasure map: appears from the map's chest",
         "dungeon" or "trial" or "raid" or "guildhest" or "tdungeon" => "Inside that duty; the learn is guaranteed while level-synced",
         "world" => "Open world: always there",

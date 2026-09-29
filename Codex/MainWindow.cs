@@ -100,12 +100,15 @@ public sealed class MainWindow : Window
 
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
-        var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable));
+        Func<Source, bool> locked = s => plugin.Game.LockedBy(data, s) != null;
+        var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable, locked));
         var hidden = levelById.Count(kv => kv.Value == null);
         var obtained = doneById.Count(kv => kv.Value);
         var summary = Progress.Summary(obtained, entries.Count, hidden);
         if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, summary); else ImGui.Text(summary);
         ImGui.Spacing();
+        // the controls above stay put; only the list scrolls
+        ImGui.BeginChild($"list##{list}", new Vector2(0, 0), false);
         var groups = cfg.GroupByBand
             ? Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b, All: false)).ToList()
             : new List<(string Title, string Key, (int, int)? Band, bool All)>();
@@ -133,13 +136,15 @@ public sealed class MainWindow : Window
             if (!open) continue;
             ImGui.Indent();
             // fixed widths for the optional cells keep every band aligned; the source column takes the rest
-            if (ImGui.BeginTable($"rows##{key}", 7, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            if (ImGui.BeginTable($"rows##{key}", 9, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
             {
                 ImGui.TableSetupColumn("done", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("no", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("lv", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("min", ImGuiTableColumnFlags.WidthFixed, 52);
                 ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 220);
+                ImGui.TableSetupColumn("map", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("go", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("rank", ImGuiTableColumnFlags.WidthFixed, 44);
                 ImGui.TableSetupColumn("source", ImGuiTableColumnFlags.WidthStretch);
                 foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
@@ -151,6 +156,7 @@ public sealed class MainWindow : Window
             }
             ImGui.Unindent();
         }
+        ImGui.EndChild();
         DrawTickConfirmation();
     }
 
@@ -218,11 +224,25 @@ public sealed class MainWindow : Window
         }
         ImGui.TableNextColumn();
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
-        var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
+        Func<Source, bool> locked = s => plugin.Game.LockedBy(data, s) != null;
+        var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable, locked) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}"))
-            Tap(e, best);
+            Tap(list, e, best);
         // read before the stars draw, or they take the hover and the name shows nothing
         var nameHovered = ImGui.IsItemHovered();
+        // one button per thing a tap can do, greyed with the reason when it cannot
+        var stop = plugin.Travel.PlannedStop(best);
+        ImGui.TableNextColumn();
+        ImGui.BeginDisabled(!stop.HasMapPosition);
+        if (ImGui.SmallButton($"Map##m{list}{e.Id}")) Flag(e, stop);
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(stop.HasMapPosition ? $"Flag {stop.Name} on the map" : "No map position known");
+        var (can, why) = plugin.Travel.CanGo(stop);
+        ImGui.TableNextColumn();
+        ImGui.BeginDisabled(!can);
+        if (ImGui.SmallButton($"Go##g{list}{e.Id}")) { Flag(e, stop); EnsureJob(list); plugin.Travel.Go(best, e.Name); }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(can ? $"Travel to {stop.Name}" + (stop.K == "questgiver" ? $" for {stop.Note}" : "") : why);
         ImGui.TableNextColumn();
         if (e.Rank is > 0 and <= 5)
         {
@@ -236,6 +256,7 @@ public sealed class MainWindow : Window
                 + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
                 + (plugin.Game.SpentLabel(data, s) is string spent ? $" ({spent})" : "")
+                + (plugin.Game.LockedBy(data, s) is { } lq ? $" (locked: '{lq.Name}', level {lq.Level})" : "")
                 + (s.Via != null ? $"\n       levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop"
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
@@ -249,9 +270,16 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
-    private void Tap(Entry e, Source tappedSource)
+    private void Tap(string list, Entry e, Source tappedSource)
     {
-        var s = plugin.Travel.NextStop(tappedSource);
+        Flag(e, plugin.Travel.PlannedStop(tappedSource));
+        if (!plugin.Config.Travel) return;
+        EnsureJob(list);
+        plugin.Travel.Go(tappedSource, e.Name);
+    }
+
+    private void Flag(Entry e, Source s)
+    {
         if (s.HasMapPosition)
         {
             var ok = gameGui.OpenMapWithMapLink(new MapLinkPayload(s.Terr, s.Map, s.Xy![0], s.Xy[1], 0f));
@@ -262,6 +290,13 @@ public sealed class MainWindow : Window
             chat.Print($"[Codex] {e.Name}: {Kinds.SourceLabel(s)} — {s.Name}" + (s.Loc != null ? $" in {s.Loc}" : "") + " (no map position).");
             log.Information($"[Codex] Tap on {e.Name}: no map position for {s.Name} ({s.K})");
         }
-        if (plugin.Config.Travel) plugin.Travel.Go(tappedSource, e.Name);
+    }
+
+    // the learn only counts on the right job, so a trip starts by putting it on
+    private void EnsureJob(string list)
+    {
+        var (job, name) = list == "bst" ? ((byte)43, "Beastmaster") : ((byte)36, "Blue Mage");
+        if (plugin.Game.CurrentJob == job) return;
+        chat.Print(plugin.Game.EquipJob(job) ? $"[Codex] Switched to {name}." : $"[Codex] No gearset saved for {name}; save one and tap again.");
     }
 }
