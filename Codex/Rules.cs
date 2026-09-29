@@ -19,7 +19,9 @@ public sealed class Source
     public int OffY { get; set; }
 
     public string? Leve { get; set; }
+    public string? Quest { get; set; }
     public Source? Via { get; set; }
+    public Source? UnlockVia { get; set; }
     public uint Npc { get; set; }
     public string? Unlock { get; set; }
 
@@ -168,8 +170,24 @@ public static class Kinds
     };
 
     // A leve is accepted from its levemete first; once the game says the leve is held, the tap goes to the enemy.
-    // the first step on the map: the levemete for a leve, otherwise the spot itself
-    public static Source FirstStop(Source s) => s.Via is { HasMapPosition: true } ? s.Via : s;
+    public static readonly string[] EnemyKinds = { "world", "fate", "hunt", "wanted", "map", "leve", "questmob" };
+
+    // whom to see first: the levemete or quest giver, or the NPC the source itself is (vendor, merchant, attendant)
+    public static Source? NpcStop(Source s)
+        => s.Via is { HasMapPosition: true } ? s.Via : s.K is "totem" or "gourd" or "carnivale" && s.HasMapPosition ? s : null;
+
+    // where the creature itself is found
+    public static Source? EnemyStop(Source s) => Array.IndexOf(EnemyKinds, s.K) >= 0 && s.HasMapPosition ? s : null;
+
+    // why there is no enemy spot to flag
+    public static string NoEnemy(Source s) => s.K switch
+    {
+        "totem" or "gourd" => "Nothing to fight: it is bought",
+        "carnivale" => "Inside the stage",
+        "default" => "Known from the start",
+        "dungeon" or "trial" or "raid" or "guildhest" or "tdungeon" => "Inside the duty",
+        _ => "No map position known",
+    };
 
     // wiki titles carry disambiguation the game's names do not
     public static string LeveKey(string name)

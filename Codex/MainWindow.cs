@@ -119,16 +119,19 @@ public sealed class MainWindow : Window
             if (!open) continue;
             ImGui.Indent();
             // fixed widths for the optional cells keep every band aligned; the source column takes the rest
-            if (ImGui.BeginTable($"rows##{key}", 9, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            if (ImGui.BeginTable($"rows##{key}", 12, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
             {
                 ImGui.TableSetupColumn("done", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("no", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("lv", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("min", ImGuiTableColumnFlags.WidthFixed, 52);
-                ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 220);
-                ImGui.TableSetupColumn("map", ImGuiTableColumnFlags.WidthFixed);
-                ImGui.TableSetupColumn("wiki", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.WidthFixed, 200);
                 ImGui.TableSetupColumn("rank", ImGuiTableColumnFlags.WidthFixed, 44);
+                ImGui.TableSetupColumn("quest", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("npc", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("enemy", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("wiki", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("copy", ImGuiTableColumnFlags.WidthFixed);
                 ImGui.TableSetupColumn("source", ImGuiTableColumnFlags.WidthStretch);
                 foreach (var (e, shown, isDone, lv) in Kinds.Sorted(rows, r => r.Entry, r => r.Lv, cfg.Sort))
                 {
@@ -185,29 +188,31 @@ public sealed class MainWindow : Window
         ImGui.TableNextColumn();
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
-        if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}"))
-            Tap(list, e, best);
+        ImGui.TextUnformatted(e.Name);
         // read before the stars draw, or they take the hover and the name shows nothing
         var nameHovered = ImGui.IsItemHovered();
-        // a button per thing a row can do, greyed with the reason when it cannot
-        var stop = Kinds.FirstStop(best);
-        ImGui.TableNextColumn();
-        ImGui.BeginDisabled(!stop.HasMapPosition);
-        if (ImGui.SmallButton($"Map##m{list}{e.Id}")) Flag(e, stop);
-        ImGui.EndDisabled();
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(stop.HasMapPosition ? $"Flag {stop.Name} on the map and open it" : "No map position known");
-        ImGui.TableNextColumn();
-        ImGui.BeginDisabled(e.Wiki == null);
-        if (ImGui.SmallButton($"Wiki##w{list}{e.Id}")) OpenWiki(e);
-        ImGui.EndDisabled();
-        if (ImGui.IsItemClicked(ImGuiMouseButton.Right) && e.Wiki != null) { ImGui.SetClipboardText(e.Wiki); chat.Print($"[Codex] Link copied: {e.Wiki}"); }
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(e.Wiki != null ? "Open the wiki page in the browser; right-click copies the link" : "No wiki page known");
         ImGui.TableNextColumn();
         if (e.Rank is > 0 and <= 5)
         {
             ImGui.TextColored(Amber, new string('*', e.Rank.Value));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank}");
         }
+        // one button per place a row can point at, greyed with the reason when there is none
+        var id = $"{list}{e.Id}";
+        var locked = plugin.Game.LockedBy(data, best);
+        var leveLock = best.Via != null ? plugin.Game.LeveLockedBy(data, best.Via.Npc) : null;
+        var gate = locked != null ? best.UnlockVia : leveLock != null ? best.Via : null;
+        var gateQuest = locked ?? leveLock;
+        RowButton("Quest", id, gate is { HasMapPosition: true },
+            gateQuest != null ? $"'{gateQuest.Name}' (level {gateQuest.Level}) must be done first" + (gate is { HasMapPosition: true } ? $": flag {gate.Name} — {gate.Loc} {Coords(gate)}" : "; its giver has no map position") : "No quest stands in the way",
+            () => Flag(e, gate!));
+        var npc = Kinds.NpcStop(best);
+        var role = npc == null ? "" : ReferenceEquals(npc, best.Via) ? (best.Leve != null ? $", the levemete for '{best.Leve}'" : npc.Quest != null ? $", who gives '{npc.Quest}'" : "") : $", {Kinds.SourceLabel(best).ToLowerInvariant()}";
+        RowButton("NPC", id, npc != null, npc != null ? $"Flag {npc.Name} — {npc.Loc} {Coords(npc)}{role}" : "No one to see first: go straight to the enemy", () => Flag(e, npc!));
+        var enemy = Kinds.EnemyStop(best);
+        RowButton("Enemy", id, enemy != null, enemy != null ? $"Flag {enemy.Name} — {enemy.Loc} {Coords(enemy)}" + (best.Via != null ? " (after the NPC)" : "") : Kinds.NoEnemy(best), () => Flag(e, enemy!));
+        RowButton("Wiki", id, e.Wiki != null, e.Wiki != null ? "Open the wiki page in the browser" : "No wiki page known", () => OpenWiki(e));
+        RowButton("Copy", id, e.Wiki != null, e.Wiki != null ? "Copy the wiki link" : "No wiki page known", () => { ImGui.SetClipboardText(e.Wiki!); chat.Print($"[Codex] Link copied: {e.Wiki}"); });
         if (nameHovered)
         {
             var enabledKinds = plugin.Config.KindsFor(list);
@@ -215,12 +220,12 @@ public sealed class MainWindow : Window
                 + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
                 + (plugin.Game.SpentLabel(data, s) is string spent ? $" ({spent})" : "")
-                + (plugin.Game.LockedBy(data, s) is { } lq ? $" (locked: '{lq.Name}', level {lq.Level})" : "")
-                + (s.Via != null ? $"\n       levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop"
+                + (plugin.Game.LockedBy(data, s) is { } lq ? $" (locked: '{lq.Name}', level {lq.Level}" + (s.UnlockVia != null ? $", from {s.UnlockVia.Name} — {s.UnlockVia.Loc} {Coords(s.UnlockVia)}" : "") + ")" : "")
+                + (s.Via != null ? "\n       " + (s.Leve != null ? "levemete " : s.Via.Quest != null ? "quest giver " : "") + $"{s.Via.Name} — {s.Via.Loc} {Coords(s.Via)}, first"
                     + (plugin.Game.LeveLockedBy(data, s.Via.Npc) is { } u ? $"; locked until '{u.Name}' (level {u.Level}) is done" : "") : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");
-            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nTap the name or Map: flag the first step on the map. Wiki: the page");
+            ImGui.SetTooltip(string.Join("\n", lines) + "\n\n" + string.Join("\n", hints) + "\n\nQuest: flag the unlock quest's giver. NPC: whom to see first. Enemy: where it appears. Wiki and Copy: the page");
         }
         ImGui.TableNextColumn();
         ImGui.TextColored(Grey, $"{Kinds.SourceLabel(best)}: {best.Name}" + (best.Loc != null ? $" — {best.Loc}" : "") + (best.Xy != null ? $" ({best.Xy[0]:0.0}, {best.Xy[1]:0.0})" : ""));
@@ -229,7 +234,16 @@ public sealed class MainWindow : Window
     private bool IsDone(string list, Entry e)
         => list == "bst" ? plugin.State.IsBeastDone(e.Id) : plugin.Game.IsUnlocked(e.UnlockLink);
 
-    private void Tap(string list, Entry e, Source tappedSource) => Flag(e, Kinds.FirstStop(tappedSource));
+    private static string Coords(Source s) => s.Xy is { Length: 2 } ? $"({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "";
+
+    private void RowButton(string label, string id, bool enabled, string tip, Action act)
+    {
+        ImGui.TableNextColumn();
+        ImGui.BeginDisabled(!enabled);
+        if (ImGui.SmallButton($"{label}##{label}{id}")) act();
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(tip);
+    }
 
     // the browser is the user's; a failed hand-off leaves the link in chat and on the clipboard
     private void OpenWiki(Entry e)

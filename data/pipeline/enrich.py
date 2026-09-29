@@ -79,6 +79,54 @@ def wiki_links(data):
             e["wiki"] = by_name.get((kind, key)) or by_title.get((kind, key)) or base + "/wiki/" + urllib.parse.quote(e["name"].replace(" ", "_"))
 
 
+QUEST_CACHE = os.path.join("gamedata", "quest_givers.json")
+
+
+def quest_giver(name, cache):
+    """Where the quest is taken: the issuer NPC's name and map spot, from the Quest, ENpcResident and Level sheets."""
+    if name in cache:
+        return cache[name]
+    found = None
+    q = urllib.parse.quote(f'Name="{name}"')
+    fields = "Name,IssuerStart,IssuerLocation.X,IssuerLocation.Y,IssuerLocation.Z,IssuerLocation.Territory,IssuerLocation.Map"
+    for row in get(f"search?sheets=Quest&query={q}&limit=5&fields={fields}").get("results", []):
+        f = row["fields"]
+        at = f.get("IssuerLocation") or {}
+        terr = (at.get("fields") or {}).get("Territory") or {}
+        if not terr.get("row_id"):
+            continue
+        npc = (f.get("IssuerStart") or {}).get("row_id") or 0
+        who = get(f"sheet/ENpcResident/{npc}?fields=Singular").get("fields", {}).get("Singular") if npc else None
+        mp = (at["fields"].get("Map") or {})
+        zone = get(f"sheet/TerritoryType/{terr['row_id']}?fields=PlaceName.Name").get("fields", {}).get("PlaceName", {}).get("fields", {}).get("Name")
+        mf = get(f"sheet/Map/{mp['row_id']}?fields=SizeFactor,OffsetX,OffsetY").get("fields", {}) if mp.get("row_id") else {}
+        size, offx, offy = mf.get("SizeFactor", 100), mf.get("OffsetX", 0), mf.get("OffsetY", 0)
+        x, y, z = at["fields"]["X"], at["fields"]["Y"], at["fields"]["Z"]
+        # the sheet writes names in lower case; capitalise each word, not each letter after an apostrophe
+        found = {"name": " ".join(w[:1].upper() + w[1:] for w in (who or "the quest giver").split(" ")), "loc": zone, "xy": [world_to_map(x, size, offx), world_to_map(z, size, offy)],
+                 "terr": terr["row_id"], "map": mp.get("row_id", 0), "size": size, "offX": offx, "offY": offy, "npc": npc, "world": [round(x, 2), round(y, 2), round(z, 2)],
+                 "quest": name}
+        break
+    cache[name] = found
+    return found
+
+
+def quest_stops(data, cache):
+    """A quest enemy is reached through its quest giver; a locked source through its unlock quest's giver."""
+    for kind in ("blu", "bst"):
+        for e in data[kind]:
+            for s in e["sources"]:
+                note = s.get("note") or ""
+                if s["k"] == "questmob" and note.startswith("quest: ") and not s.get("via"):
+                    giver = quest_giver(note[len("quest: "):], cache)
+                    if giver:
+                        s["via"] = dict(giver)
+                if s.get("unlock"):
+                    giver = quest_giver(s["unlock"], cache)
+                    if giver:
+                        s["unlockVia"] = dict(giver)
+
+
 def reshape(data, costs):
     """Wiki columns that name a thing rather than a place: every gourd is sold by one merchant, every Carnivale stage is
     entered through one attendant, every totem comes from one vendor. Each gets the NPC to stand at and the quest that opens it."""
@@ -141,6 +189,9 @@ def main():
     npcs = json.load(open(NPC_CACHE)) if os.path.exists(NPC_CACHE) else {}
     reshape(data, gourd_costs())
     wiki_links(data)
+    givers = json.load(open(QUEST_CACHE)) if os.path.exists(QUEST_CACHE) else {}
+    quest_stops(data, givers)
+    json.dump(givers, open(QUEST_CACHE, "w"), indent=1)
     for kind in ("blu", "bst"):
         for e in data[kind]:
             if kind == "blu":

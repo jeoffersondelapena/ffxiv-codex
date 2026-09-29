@@ -175,15 +175,22 @@ public class RulesTests
     }
 
     [Fact]
-    public void A_leves_first_step_is_its_levemete_when_the_levemete_is_placed()
+    public void The_npc_and_enemy_stops_follow_the_kind()
     {
         var via = new Source { K = "leve", Name = "Kikiri", Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
         var leve = new Source { K = "leve", Name = "Battle Drake", Leve = "A Cold-blooded Business", Via = via, Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
-        Assert.Same(via, Kinds.FirstStop(leve));
-        var plain = new Source { K = "world", Name = "Sundrake" };
-        Assert.Same(plain, Kinds.FirstStop(plain));
+        Assert.Same(via, Kinds.NpcStop(leve));
+        Assert.Same(leve, Kinds.EnemyStop(leve));
+        var plain = new Source { K = "world", Name = "Sundrake", Terr = 145, Map = 22, Xy = new[] { 14f, 23f } };
+        Assert.Null(Kinds.NpcStop(plain));
+        Assert.Same(plain, Kinds.EnemyStop(plain));
+        var vendor = new Source { K = "totem", Name = "Whalaqee Off-guard Totem", Terr = 131, Map = 14, Xy = new[] { 12.6f, 13f } };
+        Assert.Same(vendor, Kinds.NpcStop(vendor));
+        Assert.Null(Kinds.EnemyStop(vendor));
+        Assert.Equal("Nothing to fight: it is bought", Kinds.NoEnemy(vendor));
         var unplaced = new Source { K = "leve", Name = "Angry Sow", Via = new Source { Name = "somebody" } };
-        Assert.Same(unplaced, Kinds.FirstStop(unplaced));
+        Assert.Null(Kinds.NpcStop(unplaced));
+        Assert.Null(Kinds.EnemyStop(unplaced));
     }
 
     [Fact]
