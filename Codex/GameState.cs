@@ -96,6 +96,13 @@ public sealed unsafe class GameState
     public QuestInfo? LockedBy(IDataManager data, Source s)
         => s.Unlock != null && Quest(data, s.Unlock) is { } q && !QuestManager.IsQuestComplete(q.Id) ? q : null;
 
+    // covers aethernet shards as well as aetherytes
+    public bool IsAetheryteUnlocked(uint id)
+    {
+        var ui = UIState.Instance();
+        return ui != null && ui->IsAetheryteUnlocked(id);
+    }
+
     // the flag alone, no map window: for a trip the map is noise
     public bool SetFlag(uint terr, uint map, System.Numerics.Vector3 world)
     {

@@ -116,10 +116,10 @@ public sealed unsafe class Travel
         var shardName = stop.Tp;
         if (shardName == null)
         {
-            var (name, dist) = NearestShard(stop, goal);
+            var (name, dist, anyKnown) = NearestShard(stop, goal);
             shardName = name;
-            if (shardName == null) return new Route(0, 0, default, null, $"No aethernet shard of {stop.Loc} is on the map");
-            log.Debug($"[Codex] Travel: nearest shard to {stop.Name} is {shardName} ({dist:0} yalms)");
+            if (shardName == null) return new Route(0, 0, default, null, anyKnown ? $"No attuned aethernet shard in {stop.Loc}: touch one there first" : $"No aethernet shard of {stop.Loc} is on the map");
+            log.Debug($"[Codex] Travel: nearest attuned shard to {stop.Name} is {shardName} ({dist:0} yalms)");
         }
         return new Route(mainId, main.Value.Territory.RowId, PositionOf(main.Value) ?? goal, shardName, "");
     }
@@ -127,27 +127,29 @@ public sealed unsafe class Travel
     // Shard spots come from wherever the game keeps them: the aetheryte's own placement row when it resolves (the
     // Idyllshire gates), else the target zone's map markers (the Ul'dah districts), else the main aetheryte's map
     // markers as a last resort, which cannot be ranked by distance since they sit in another zone's coordinates.
-    public List<(string Name, Vector3 Pos, string From)> Shards(uint terr)
+    public List<(string Name, Vector3 Pos, string From, bool Attuned)> Shards(uint terr)
     {
-        var found = new List<(string, Vector3, string)>();
+        var found = new List<(string, Vector3, string, bool)>();
         var sheet = data.GetExcelSheet<Aetheryte>();
         var territories = data.GetExcelSheet<TerritoryType>();
         if (sheet == null || territories == null) return found;
         var mainId = territories.GetRowOrDefault(terr)?.Aetheryte.RowId ?? 0;
         var group = mainId != 0 ? sheet.GetRowOrDefault(mainId)?.AethernetGroup ?? 0 : 0;
-        var seen = new HashSet<string>();
+        // a shard must have been touched once before the game (and so Lifestream) will ride to it
+        var attuned = new Dictionary<string, bool>();
         foreach (var a in sheet)
         {
             if (a.IsAetheryte || (a.Territory.RowId != terr && (group == 0 || a.AethernetGroup != group))) continue;
             var name = a.AethernetName.ValueNullable?.Name.ExtractText();
-            if (string.IsNullOrEmpty(name) || !seen.Add(name)) continue;
-            if (a.Territory.RowId == terr && PositionOf(a) is { } placed) found.Add((name, placed, "placement"));
+            if (string.IsNullOrEmpty(name) || attuned.ContainsKey(name)) continue;
+            attuned[name] = game.IsAetheryteUnlocked(a.RowId);
+            if (a.Territory.RowId == terr && PositionOf(a) is { } placed) found.Add((name, placed, "placement", attuned[name]));
         }
         foreach (var (name, pos) in MarkerShards(terr, sheet))
-            if (seen.Contains(name) && found.All(f => f.Item1 != name)) found.Add((name, pos, "marker"));
+            if (attuned.ContainsKey(name) && found.All(f => f.Item1 != name)) found.Add((name, pos, "marker", attuned[name]));
         if (found.Count == 0 && mainId != 0 && sheet.GetRowOrDefault(mainId) is { } main)
             foreach (var (name, pos) in MarkerShards(main.Territory.RowId, sheet))
-                if (seen.Contains(name)) found.Add((name, pos, "main map"));
+                if (attuned.ContainsKey(name)) found.Add((name, pos, "main map", attuned[name]));
         return found;
     }
 
@@ -171,15 +173,17 @@ public sealed unsafe class Travel
         return found;
     }
 
-    private (string? Name, float Dist) NearestShard(Source stop, Vector3 goal)
+    private (string? Name, float Dist, bool AnyKnown) NearestShard(Source stop, Vector3 goal)
     {
-        string? best = null; var bestDist = float.MaxValue;
-        foreach (var (name, pos, from) in Shards(stop.Terr))
+        string? best = null; var bestDist = float.MaxValue; var any = false;
+        foreach (var (name, pos, from, ok) in Shards(stop.Terr))
         {
+            any = true;
+            if (!ok) continue;
             var d = from == "main map" ? 1e6f : Vector3.Distance(Flat(pos), Flat(goal));
             if (d < bestDist) { best = name; bestDist = d; }
         }
-        return (best, bestDist);
+        return (best, bestDist, any);
     }
 
     private static Vector3 Flat(Vector3 v) => new(v.X, 0, v.Z);
