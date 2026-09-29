@@ -217,7 +217,7 @@ public sealed class MainWindow : Window
             var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
                 + $"{Kinds.SourceLabel(s)}: {s.Name}" + (s.Loc != null ? $" — {s.Loc}" : "") + (s.Xy != null ? $" ({s.Xy[0]:0.0}, {s.Xy[1]:0.0})" : "")
                 + $", {Kinds.LevelText(s)}" + (s.Note != null ? $"; {s.Note}" : "") + (Kinds.Visible(s, enabledKinds) ? "" : " (not included)")
-                + (usable(s) ? "" : " (quest done)")
+                + (Kinds.QuestOf(s) is string q && plugin.Game.QuestDone(data, q) is bool again ? (again ? " (quest done, repeatable)" : " (quest done)") : "")
                 + (s.Via != null ? $"\n       levemete {s.Via.Name} — {s.Via.Loc}" + (s.Via.Xy != null ? $" ({s.Via.Xy[0]:0.0}, {s.Via.Xy[1]:0.0})" : "") + ", first stop" : ""));
             var hints = e.Sources.Select(s => Kinds.Hint(s.K)).Where(h => h.Length > 0).Distinct().ToList();
             if (shown.Any(s => s.K == "leve") && plugin.Game.LeveAllowances >= 0) hints.Add($"Leve allowances now: {plugin.Game.LeveAllowances}");

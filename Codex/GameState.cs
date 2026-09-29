@@ -64,8 +64,11 @@ public sealed unsafe class GameState
 
     private Dictionary<string, (uint Id, bool Repeatable)>? quests;
 
-    // a quest-bound enemy is gone once its quest is complete, unless the quest repeats
-    public bool QuestSpent(IDataManager data, string name)
+    // each quest is played once, so a completed quest's enemy counts as spent even when the quest repeats
+    public bool QuestSpent(IDataManager data, string name) => QuestDone(data, name) != null;
+
+    // null while the quest is open; otherwise whether the game lets it be taken again
+    public bool? QuestDone(IDataManager data, string name)
     {
         if (quests == null)
         {
@@ -78,7 +81,8 @@ public sealed unsafe class GameState
                     if (key.Length > 0) quests.TryAdd(key, (q.RowId, q.IsRepeatable));
                 }
         }
-        return quests.TryGetValue(Kinds.LeveKey(name), out var found) && !found.Repeatable && QuestManager.IsQuestComplete(found.Id);
+        if (!quests.TryGetValue(Kinds.LeveKey(name), out var found) || !QuestManager.IsQuestComplete(found.Id)) return null;
+        return found.Repeatable;
     }
 
     public bool IsMountUnlocked(uint mountId)
