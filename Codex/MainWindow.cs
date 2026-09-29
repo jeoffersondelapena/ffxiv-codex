@@ -206,13 +206,15 @@ public sealed class MainWindow : Window
         var best = Kinds.Driver(e, plugin.Config.KindsFor(list), usable) ?? shown[0];
         if (ImGui.Selectable($"{e.Name}##e{list}{e.Id}", false, ImGuiSelectableFlags.None, new Vector2(220, 0)))
             Tap(e, best);
+        // read before the stars draw, or they take the hover and the name shows nothing
+        var nameHovered = ImGui.IsItemHovered();
         if (e.Rank is > 0 and <= 5)
         {
             ImGui.SameLine(0, 2);
             ImGui.TextColored(Amber, new string('*', e.Rank.Value));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Rank {e.Rank}");
         }
-        if (ImGui.IsItemHovered())
+        if (nameHovered)
         {
             var enabledKinds = plugin.Config.KindsFor(list);
             var lines = e.Sources.OrderBy(s => Kinds.Rank(s.K)).ThenBy(s => s.Lv).Select(s => (ReferenceEquals(s, best) ? "> " : "   ")
