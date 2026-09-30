@@ -42,7 +42,39 @@ public sealed class Plugin : IDalamudPlugin
         log.Information("[Codex] Loaded");
     }
 
-    public void SaveConfig() => pi.SavePluginConfig(Config);
+    private ulong settingsFor;
+    private string? settingsPath;
+
+    // the shared file holds the defaults a new character starts from; a logged-in character's choices go to its own file
+    public void RefreshCharacter()
+    {
+        State.Refresh();
+        var cid = Game.ContentId;
+        if (cid == settingsFor) return;
+        settingsFor = cid; settingsPath = null;
+        var settings = (pi.GetPluginConfig() as Configuration ?? new Configuration()).ToSettings();
+        if (cid != 0)
+        {
+            settingsPath = Path.Combine(pi.GetPluginConfigDirectory(), "settings", StateStore.Key(cid) + ".json");
+            if (File.Exists(settingsPath))
+            {
+                try { settings = StateStore.DeserializeSettings(File.ReadAllText(settingsPath)); }
+                catch (Exception e) { log.Warning($"[Codex] Settings file could not be read, using the defaults: {e.Message}"); }
+            }
+        }
+        Config.Apply(settings);
+    }
+
+    public void SaveConfig()
+    {
+        if (settingsPath == null) { pi.SavePluginConfig(Config); return; }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(settingsPath, StateStore.SerializeSettings(Config.ToSettings()));
+        }
+        catch (Exception e) { log.Error($"[Codex] Settings could not be saved: {e.Message}"); }
+    }
 
     private void Open() => main.IsOpen = true;
 

@@ -20,6 +20,24 @@ public class StateStoreTests
     }
 
     [Fact]
+    public void Settings_round_trip_per_character()
+    {
+        var s = new StateStore.Settings { List = "bst", Sort = "lv-desc", AutoTravel = false, MountId = 71, GroupByBand = false };
+        s.EnabledKinds["blu"] = new() { "dungeon", "wanted" }; s.UnobtainedOnly["bst"] = true;
+        var back = StateStore.DeserializeSettings(StateStore.SerializeSettings(s));
+        Assert.Equal(("bst", "lv-desc", false, 71u, false), (back.List, back.Sort, back.AutoTravel, back.MountId, back.GroupByBand));
+        Assert.Equal(new[] { "dungeon", "wanted" }, back.EnabledKinds["blu"]);
+        Assert.True(back.UnobtainedOnly["bst"]);
+    }
+
+    [Fact]
+    public void Settings_missing_from_a_file_fall_back_to_the_defaults()
+    {
+        var back = StateStore.DeserializeSettings("{}");
+        Assert.Equal(("blu", "lv", true, 0u, true), (back.List, back.Sort, back.AutoTravel, back.MountId, back.GroupByBand));
+    }
+
+    [Fact]
     public void An_empty_or_broken_file_yields_no_ticks()
     {
         Assert.Empty(StateStore.Deserialize("{}"));

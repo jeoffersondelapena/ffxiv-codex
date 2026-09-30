@@ -16,4 +16,23 @@ public static class StateStore
 
     public static HashSet<int> Deserialize(string json)
         => new(JsonSerializer.Deserialize<StateFile>(json)?.Beasts ?? new());
+
+    // what a character chose in the window: two game windows would otherwise overwrite each other's choices
+    public sealed class Settings
+    {
+        public string List { get; set; } = "blu";
+        public Dictionary<string, List<string>> EnabledKinds { get; set; } = new();
+        public Dictionary<string, bool> UnobtainedOnly { get; set; } = new();
+        public string Sort { get; set; } = "lv";
+        public bool AutoTravel { get; set; } = true;
+        public uint MountId { get; set; }
+        public float MountDistance { get; set; } = 15f;
+        public bool GroupByBand { get; set; } = true;
+    }
+
+    public static string SerializeSettings(Settings settings)
+        => JsonSerializer.Serialize(settings);
+
+    public static Settings DeserializeSettings(string json)
+        => JsonSerializer.Deserialize<Settings>(json) ?? new Settings();
 }

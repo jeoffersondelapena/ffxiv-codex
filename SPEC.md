@@ -15,6 +15,7 @@ A private Dalamud plugin, **Codex** (InternalName `Codex`, command `/codex`), fo
 - Spells: automatic. Each AozAction's Action row has an UnlockLink; `UIState.Instance()->IsUnlockLinkUnlockedOrQuestCompleted(unlockLink, ...)` tells learned. Map AozAction -> Action -> UnlockLink at data-build time (XIVAPI) or at runtime from Lumina.
 - Beasts: **manual ticks** for now. ClientStructs exposes only an opaque `ActionManager._beastmasterPets`; no tamed flag. Revisit when a bestiary structure is mapped.
 - Per-character state file keyed by content id (never the name in the file name) in the plugin's config directory; two game windows write separate files; survives restarts. Nothing character-related ever enters the repository.
+- Per-character settings, same key, under `settings/`: the list shown, the Include boxes, sort, grouping, Auto travel and the mount. Two game windows share the plugin's config file, and each window saving its own choices there overwrote the other's. The shared file now only holds the defaults a character starts from; once logged in, choices load from and save to that character's file (2026-09-30, so both characters can run at once).
 
 ## UI
 - Window per list (Blue Magic, Beasts): an overall line at the top ("N of T obtained, P%", floored, plus how many entries the Include filters hide), band groups, entries with level and check mark, "Unobtained Only" filter, the opt-in category checkboxes, a band shows complete when everything shown in it is done ("look at the next band"), search optional.

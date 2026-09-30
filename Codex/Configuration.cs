@@ -14,6 +14,20 @@ public sealed class Configuration : IPluginConfiguration
     public float MountDistance { get; set; } = 15f;
     public bool GroupByBand { get; set; } = true;
 
+    public StateStore.Settings ToSettings() => new()
+    {
+        List = List, Sort = Sort, AutoTravel = AutoTravel, MountId = MountId, MountDistance = MountDistance, GroupByBand = GroupByBand,
+        EnabledKinds = EnabledKinds.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+        UnobtainedOnly = new(UnobtainedOnly),
+    };
+
+    public void Apply(StateStore.Settings s)
+    {
+        List = s.List; Sort = s.Sort; AutoTravel = s.AutoTravel; MountId = s.MountId; MountDistance = s.MountDistance; GroupByBand = s.GroupByBand;
+        EnabledKinds = s.EnabledKinds.ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
+        UnobtainedOnly = new(s.UnobtainedOnly);
+    }
+
     public HashSet<string> KindsFor(string list)
         => new(EnabledKinds.TryGetValue(list, out var v) ? v : new List<string>());
 

@@ -33,7 +33,7 @@ public sealed class MainWindow : Window
     public override void Draw()
     {
         var cfg = plugin.Config;
-        plugin.State.Refresh();
+        plugin.RefreshCharacter();
         if (ImGui.BeginTabBar("lists"))
         {
             foreach (var (key, label) in Lists)
