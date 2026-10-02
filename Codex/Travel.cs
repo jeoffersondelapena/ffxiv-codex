@@ -377,9 +377,8 @@ public sealed unsafe class Travel
         if (!config.Sprint || (DateTime.Now - sprintChecked).TotalMilliseconds < 500) return;
         sprintChecked = DateTime.Now;
         if (objects.LocalPlayer is not { } player || !pathRunning.InvokeFunc()) return;
-        var faster = player.StatusList.Any(s => Walking.AlreadyFaster.Contains(s.StatusId));
         var left = Walking.Left(player.Position, waypoints.InvokeFunc());
-        if (Walking.SprintNow(true, Mounted, faster, game.CanUse(ActionType.GeneralAction, Walking.SprintAction), left)
+        if (Walking.SprintNow(true, Mounted, game.CanUse(ActionType.GeneralAction, Walking.SprintAction), left)
             && game.Use(ActionType.GeneralAction, Walking.SprintAction))
             log.Information($"[Codex] Travel ({targetName}): sprinting, {left:0} yalms of walk left");
     }

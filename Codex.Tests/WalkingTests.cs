@@ -12,13 +12,12 @@ public class WalkingTests
     }
 
     [Fact]
-    public void Sprint_only_on_foot_when_ready_on_a_long_enough_walk_and_not_already_faster()
+    public void Sprint_only_on_foot_when_ready_on_a_long_enough_walk()
     {
-        Assert.True(Walking.SprintNow(walking: true, mounted: false, faster: false, ready: true, left: 120));
-        Assert.False(Walking.SprintNow(walking: false, mounted: false, faster: false, ready: true, left: 120));
-        Assert.False(Walking.SprintNow(walking: true, mounted: true, faster: false, ready: true, left: 120));
-        Assert.False(Walking.SprintNow(walking: true, mounted: false, faster: true, ready: true, left: 120));
-        Assert.False(Walking.SprintNow(walking: true, mounted: false, faster: false, ready: false, left: 120));
-        Assert.False(Walking.SprintNow(walking: true, mounted: false, faster: false, ready: true, left: 12));
+        Assert.True(Walking.SprintNow(walking: true, mounted: false, ready: true, left: 120));
+        Assert.False(Walking.SprintNow(walking: false, mounted: false, ready: true, left: 120));
+        Assert.False(Walking.SprintNow(walking: true, mounted: true, ready: true, left: 120));
+        Assert.False(Walking.SprintNow(walking: true, mounted: false, ready: false, left: 120));
+        Assert.False(Walking.SprintNow(walking: true, mounted: false, ready: true, left: 12));
     }
 }
