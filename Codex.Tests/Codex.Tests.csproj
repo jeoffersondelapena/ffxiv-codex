@@ -11,6 +11,7 @@
 		<Compile Include="..\Codex\Rules.cs" Link="Rules.cs" />
 		<Compile Include="..\Codex\MapMath.cs" Link="MapMath.cs" />
 		<Compile Include="..\Codex\StateStore.cs" Link="StateStore.cs" />
+		<Compile Include="..\Codex\Walking.cs" Link="Walking.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

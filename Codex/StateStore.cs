@@ -27,6 +27,7 @@ public static class StateStore
         public bool AutoTravel { get; set; } = true;
         public uint MountId { get; set; }
         public float MountDistance { get; set; } = 15f;
+        public bool Sprint { get; set; } = true;
         public bool GroupByBand { get; set; } = true;
     }
 

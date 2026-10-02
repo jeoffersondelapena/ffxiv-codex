@@ -279,6 +279,10 @@ public sealed class MainWindow : Window
             ImGui.EndCombo();
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Used for the longer stretches; flies where the zone allows it.");
+        ImGui.SameLine();
+        var sprint = cfg.Sprint;
+        if (ImGui.Checkbox("Sprint", ref sprint)) { cfg.Sprint = sprint; plugin.SaveConfig(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Sprint on foot whenever the game allows it. Skipped on walks under 30 yalms, while mounted, and while Sprint, Peloton or Jog is already active.");
     }
 
     private string MountName(uint id)

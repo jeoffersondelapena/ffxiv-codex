@@ -39,6 +39,7 @@ public sealed unsafe class Travel
     private readonly ICallGateSubscriber<Vector3, bool, bool> moveTo;
     private readonly ICallGateSubscriber<bool> pathfinding;
     private readonly ICallGateSubscriber<bool> pathRunning;
+    private readonly ICallGateSubscriber<List<Vector3>> waypoints;
     private readonly ICallGateSubscriber<object> stop;
 
     private Step step = Step.Idle;
@@ -57,6 +58,7 @@ public sealed unsafe class Travel
     private DateTime since;
     private DateTime lastReport;
     private DateTime lastAction;
+    private DateTime sprintChecked;
 
     public Travel(IDalamudPluginInterface pi, IClientState clientState, IObjectTable objects, ICondition condition, IDataManager data,
                   IAetheryteList aetherytes, GameState game, Configuration config, IPluginLog log, IChatGui chat)
@@ -74,6 +76,7 @@ public sealed unsafe class Travel
         moveTo       = pi.GetIpcSubscriber<Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo");
         pathfinding  = pi.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         pathRunning  = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
+        waypoints    = pi.GetIpcSubscriber<List<Vector3>>("vnavmesh.Path.ListWaypoints");
         stop         = pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     }
 
@@ -253,6 +256,7 @@ public sealed unsafe class Travel
         if (step == Step.Idle || target == null) return;
         try
         {
+            if (step is Step.Walking or Step.AtAetheryte) MaybeSprint();
             switch (step)
             {
                 case Step.ChangingJob:
@@ -367,6 +371,18 @@ public sealed unsafe class Travel
     }
 
     private bool Mounted => condition[ConditionFlag.Mounted];
+
+    private void MaybeSprint()
+    {
+        if (!config.Sprint || (DateTime.Now - sprintChecked).TotalMilliseconds < 500) return;
+        sprintChecked = DateTime.Now;
+        if (objects.LocalPlayer is not { } player || !pathRunning.InvokeFunc()) return;
+        var faster = player.StatusList.Any(s => Walking.AlreadyFaster.Contains(s.StatusId));
+        var left = Walking.Left(player.Position, waypoints.InvokeFunc());
+        if (Walking.SprintNow(true, Mounted, faster, game.CanUse(ActionType.GeneralAction, Walking.SprintAction), left)
+            && game.Use(ActionType.GeneralAction, Walking.SprintAction))
+            log.Information($"[Codex] Travel ({targetName}): sprinting, {left:0} yalms of walk left");
+    }
 
     private bool TryMount()
     {
