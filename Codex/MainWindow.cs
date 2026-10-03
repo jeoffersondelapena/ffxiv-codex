@@ -135,13 +135,20 @@ public sealed class MainWindow : Window
             : new List<(string Title, string Key, (int, int)? Band, bool All)>();
         if (cfg.Sort == "lv-desc") groups.Reverse();
         groups.Add(cfg.GroupByBand ? ("Level unknown", "bandnone", null, false) : ("All levels", "all", null, true));
+        // an entry Include hides has no shown level, so it is counted in the band it would land in with every box ticked
+        var everyKind = Kinds.OptIn.Select(o => o.Key).ToHashSet();
+        var bandLevelById = entries.ToDictionary(e => e.Id, e => levelById[e.Id] ?? Kinds.ShownLevel(e, everyKind, usable));
         foreach (var (title, key, band, all) in groups)
         {
-            var rows = listed.Where(r => all || (band is (int lo, int hi) ? r.Lv >= lo && r.Lv <= hi : Kinds.BandOf(r.Lv) == null)).ToList();
+            bool InBand(int? level) => all || (level is int l ? (band is (int lo, int hi) ? l >= lo && l <= hi : Kinds.BandOf(l) == null) : band == null);
+            var rows = listed.Where(r => InBand(r.Lv)).ToList();
             if (rows.Count == 0) continue;
+            var members = entries.Where(e => InBand(bandLevelById[e.Id])).ToList();
             var done = rows.Count(r => r.Done);
             var complete = done == rows.Count;
-            var header = $"{title}   {done}/{rows.Count}" + (complete ? "   Complete, look at the next band" : "") + $"##{key}";
+            var counts = Progress.Summary(done, rows.Count, members.Count(e => doneById[e.Id]), members.Count,
+                members.Count(e => levelById[e.Id] == null), unobtainedOnly);
+            var header = $"{title}   {Progress.Joined(counts)}" + (complete ? "   Complete, look at the next band" : "") + $"##{key}";
             if (complete) ImGui.PushStyleColor(ImGuiCol.Text, Green);
             var open = ImGui.CollapsingHeader(header, complete ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.DefaultOpen);
             if (complete) ImGui.PopStyleColor();

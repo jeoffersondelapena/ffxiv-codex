@@ -221,4 +221,7 @@ public static class Progress
 
         return (unobtainedOnly ? $"Shown: {shown - doneShown} remaining" : $"Shown: {Count(doneShown, shown)}", $"Overall: {Count(done, total)}", hidden);
     }
+
+    public static string Joined((string? Shown, string Overall, string? Hidden) counts)
+        => string.Join(" · ", new[] { counts.Shown, counts.Overall, counts.Hidden }.Where(part => part != null));
 }

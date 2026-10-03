@@ -67,6 +67,15 @@ public class RulesTests
     }
 
     [Fact]
+    public void A_band_header_joins_the_same_counts_into_one_line()
+    {
+        Assert.Equal("Shown: 8 of 13 obtained, 61% · Overall: 8 of 16 obtained, 50% · 3 hidden by Include",
+            Progress.Joined(Progress.Summary(8, 13, 8, 16, 3, false)));
+        Assert.Equal("8 of 13 obtained, 61%", Progress.Joined(Progress.Summary(8, 13, 8, 13, 0, false)));
+        Assert.Equal("Shown: 5 remaining · Overall: 8 of 13 obtained, 61%", Progress.Joined(Progress.Summary(8, 13, 8, 13, 0, true)));
+    }
+
+    [Fact]
     public void Unobtained_Only_counts_what_remains_of_what_is_shown()
     {
         Assert.Equal(("Shown: 58 remaining", "Overall: 8 of 124 obtained, 6%", "61 hidden by Include"), Progress.Summary(5, 63, 8, 124, 61, true));
