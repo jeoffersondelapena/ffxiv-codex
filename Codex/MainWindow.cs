@@ -101,13 +101,22 @@ public sealed class MainWindow : Window
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable));
-        var included = levelById.Count(kv => kv.Value != null);
-        var obtainedIncluded = entries.Count(e => levelById[e.Id] != null && doneById[e.Id]);
-        var obtained = doneById.Count(kv => kv.Value);
-        var (includedCount, overallCount, hiddenNote) = Progress.Summary(obtainedIncluded, included, obtained, entries.Count);
-        if (includedCount != null)
+        // what Include and the search leave; Unobtained Only then drops the done ones row by row
+        var listed = new List<(Entry Entry, List<Source> Shown, bool Done, int Lv)>();
+        foreach (var e in entries)
         {
-            if (obtainedIncluded == included && included > 0) ImGui.TextColored(Green, includedCount); else ImGui.Text(includedCount);
+            if (levelById[e.Id] is not int lv) continue;
+            var shownSources = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
+            if (!Kinds.Matches(e, shownSources, query)) continue;
+            listed.Add((e, shownSources, doneById[e.Id], lv));
+        }
+        var shownDone = listed.Count(r => r.Done);
+        var obtained = doneById.Count(kv => kv.Value);
+        var (shownCount, overallCount, hiddenNote) = Progress.Summary(shownDone, listed.Count, obtained, entries.Count,
+            levelById.Count(kv => kv.Value == null), unobtainedOnly);
+        if (shownCount != null)
+        {
+            if (shownDone == listed.Count && listed.Count > 0) ImGui.TextColored(Green, shownCount); else ImGui.Text(shownCount);
             ImGui.SameLine();
             ImGui.TextColored(Grey, "·");
             ImGui.SameLine();
@@ -128,16 +137,7 @@ public sealed class MainWindow : Window
         groups.Add(cfg.GroupByBand ? ("Level unknown", "bandnone", null, false) : ("All levels", "all", null, true));
         foreach (var (title, key, band, all) in groups)
         {
-            var rows = new List<(Entry Entry, List<Source> Shown, bool Done, int Lv)>();
-            foreach (var e in entries)
-            {
-                if (levelById[e.Id] is not int lv) continue;
-                var inBand = all || (band is (int lo, int hi) ? lv >= lo && lv <= hi : Kinds.BandOf(lv) == null);
-                if (!inBand) continue;
-                var shownSources = e.Sources.Where(s => Kinds.Visible(s, enabled)).ToList();
-                if (!Kinds.Matches(e, shownSources, query)) continue;
-                rows.Add((e, shownSources, doneById[e.Id], lv));
-            }
+            var rows = listed.Where(r => all || (band is (int lo, int hi) ? r.Lv >= lo && r.Lv <= hi : Kinds.BandOf(r.Lv) == null)).ToList();
             if (rows.Count == 0) continue;
             var done = rows.Count(r => r.Done);
             var complete = done == rows.Count;

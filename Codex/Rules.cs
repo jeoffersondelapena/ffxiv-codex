@@ -211,9 +211,14 @@ public static class Progress
     public static string Count(int done, int total)
         => $"{done} of {total} obtained, {(total == 0 ? 0 : (int)(100L * done / total))}%";
 
-    // With nothing hidden the included count is the overall one, so it is said once.
-    public static (string? Included, string Overall, string? Hidden) Summary(int doneIncluded, int included, int done, int total)
-        => total > included
-            ? ($"Included: {Count(doneIncluded, included)}", $"Overall: {Count(done, total)}", $"{total - included} hidden by Include")
-            : (null, Count(done, total), null);
+    // Under Unobtained Only every shown row is missing, so "n of t" would always read 0.
+    public static (string? Shown, string Overall, string? Hidden) Summary(int doneShown, int shown, int done, int total, int hiddenByInclude,
+        bool unobtainedOnly)
+    {
+        var hidden = hiddenByInclude > 0 ? $"{hiddenByInclude} hidden by Include" : null;
+        if (shown == total && !unobtainedOnly)
+            return (null, Count(done, total), hidden);
+
+        return (unobtainedOnly ? $"Shown: {shown - doneShown} remaining" : $"Shown: {Count(doneShown, shown)}", $"Overall: {Count(done, total)}", hidden);
+    }
 }

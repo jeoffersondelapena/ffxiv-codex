@@ -57,11 +57,21 @@ public class RulesTests
     }
 
     [Fact]
-    public void When_Include_hides_entries_the_line_counts_the_included_ones_apart_from_the_whole_list()
+    public void A_filtered_list_counts_what_it_shows_apart_from_the_whole_list()
     {
-        Assert.Equal(("Included: 5 of 63 obtained, 7%", "Overall: 8 of 124 obtained, 6%", "61 hidden by Include"), Progress.Summary(5, 63, 8, 124));
-        Assert.Equal(("Included: 0 of 0 obtained, 0%", "Overall: 3 of 50 obtained, 6%", "50 hidden by Include"), Progress.Summary(0, 0, 3, 50));
-        Assert.Equal((null, "37 of 124 obtained, 29%", null), Progress.Summary(37, 124, 37, 124));
+        Assert.Equal(("Shown: 5 of 63 obtained, 7%", "Overall: 8 of 124 obtained, 6%", "61 hidden by Include"),
+            Progress.Summary(5, 63, 8, 124, 61, false));
+        Assert.Equal(("Shown: 1 of 4 obtained, 25%", "Overall: 8 of 124 obtained, 6%", null), Progress.Summary(1, 4, 8, 124, 0, false));
+        Assert.Equal(("Shown: 0 of 0 obtained, 0%", "Overall: 3 of 50 obtained, 6%", "50 hidden by Include"), Progress.Summary(0, 0, 3, 50, 50, false));
+        Assert.Equal((null, "37 of 124 obtained, 29%", null), Progress.Summary(37, 124, 37, 124, 0, false));
+    }
+
+    [Fact]
+    public void Unobtained_Only_counts_what_remains_of_what_is_shown()
+    {
+        Assert.Equal(("Shown: 58 remaining", "Overall: 8 of 124 obtained, 6%", "61 hidden by Include"), Progress.Summary(5, 63, 8, 124, 61, true));
+        Assert.Equal(("Shown: 116 remaining", "Overall: 8 of 124 obtained, 6%", null), Progress.Summary(8, 124, 8, 124, 0, true));
+        Assert.Equal(("Shown: 0 remaining", "Overall: 124 of 124 obtained, 100%", null), Progress.Summary(124, 124, 124, 124, 0, true));
     }
 
     [Fact]
