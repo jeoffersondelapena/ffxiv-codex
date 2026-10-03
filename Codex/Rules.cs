@@ -208,10 +208,12 @@ public static class Kinds
 public static class Progress
 {
     // Floored so 100% only ever means complete.
-    public static string Summary(int done, int total, int hidden)
-    {
-        var pct = total == 0 ? 0 : (int)(100L * done / total);
-        var s = $"{done} of {total} obtained, {pct}%";
-        return hidden > 0 ? s + $" · {hidden} hidden by Include" : s;
-    }
+    public static string Count(int done, int total)
+        => $"{done} of {total} obtained, {(total == 0 ? 0 : (int)(100L * done / total))}%";
+
+    // With nothing hidden the included count is the overall one, so it is said once.
+    public static (string? Included, string Overall, string? Hidden) Summary(int doneIncluded, int included, int done, int total)
+        => total > included
+            ? ($"Included: {Count(doneIncluded, included)}", $"Overall: {Count(done, total)}", $"{total - included} hidden by Include")
+            : (null, Count(done, total), null);
 }

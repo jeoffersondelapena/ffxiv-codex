@@ -101,10 +101,23 @@ public sealed class MainWindow : Window
         var doneById = entries.ToDictionary(e => e.Id, e => IsDone(list, e));
         Func<Source, bool> usable = s => plugin.Game.SpentLabel(data, s) == null;
         var levelById = entries.ToDictionary(e => e.Id, e => Kinds.ShownLevel(e, enabled, usable));
-        var hidden = levelById.Count(kv => kv.Value == null);
+        var included = levelById.Count(kv => kv.Value != null);
+        var obtainedIncluded = entries.Count(e => levelById[e.Id] != null && doneById[e.Id]);
         var obtained = doneById.Count(kv => kv.Value);
-        var summary = Progress.Summary(obtained, entries.Count, hidden);
-        if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, summary); else ImGui.Text(summary);
+        var (includedCount, overallCount, hiddenNote) = Progress.Summary(obtainedIncluded, included, obtained, entries.Count);
+        if (includedCount != null)
+        {
+            if (obtainedIncluded == included && included > 0) ImGui.TextColored(Green, includedCount); else ImGui.Text(includedCount);
+            ImGui.SameLine();
+            ImGui.TextColored(Grey, "·");
+            ImGui.SameLine();
+        }
+        if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, overallCount); else ImGui.Text(overallCount);
+        if (hiddenNote != null)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Grey, $"· {hiddenNote}");
+        }
         ImGui.Spacing();
         // the controls above stay put; only the list scrolls
         ImGui.BeginChild($"list##{list}", new Vector2(0, 0), false);
