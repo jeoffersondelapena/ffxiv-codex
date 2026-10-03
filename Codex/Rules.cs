@@ -211,17 +211,28 @@ public static class Progress
     public static string Count(int done, int total)
         => $"{done} of {total} obtained, {(total == 0 ? 0 : (int)(100L * done / total))}%";
 
+    // Asked of the whole list and passed to every band, so all lines carry the same columns.
+    public static bool Filtered(int shown, int total, bool unobtainedOnly)
+        => shown != total || unobtainedOnly;
+
     // Under Unobtained Only every shown row is missing, so "n of t" would always read 0.
     public static (string? Shown, string Overall, string? Hidden) Summary(int doneShown, int shown, int done, int total, int hiddenByInclude,
-        bool unobtainedOnly)
+        bool unobtainedOnly, bool filtered)
     {
         var hidden = hiddenByInclude > 0 ? $"{hiddenByInclude} hidden by Include" : null;
-        if (shown == total && !unobtainedOnly)
+        if (!filtered)
             return (null, Count(done, total), hidden);
 
         return (unobtainedOnly ? $"Shown: {shown - doneShown} remaining" : $"Shown: {Count(doneShown, shown)}", $"Overall: {Count(done, total)}", hidden);
     }
 
-    public static string Joined((string? Shown, string Overall, string? Hidden) counts)
-        => string.Join(" · ", new[] { counts.Shown, counts.Overall, counts.Hidden }.Where(part => part != null));
+    // Left edges from a row's title: each part starts past the widest text of the column before it.
+    public static (float Shown, float Overall, float Hidden, float Note) Columns(float title, float shown, float overall, float hidden, float gap,
+        float divider)
+    {
+        var first = title + gap;
+        var second = shown > 0 ? first + shown + gap + divider + gap : first;
+        var third = second + overall + gap + divider + gap;
+        return (first, second, third, (hidden > 0 ? third + hidden : second + overall) + gap);
+    }
 }

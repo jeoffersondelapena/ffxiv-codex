@@ -14,6 +14,8 @@ public sealed class MainWindow : Window
     private static readonly Vector4 Grey  = new(0.6f, 0.6f, 0.6f, 1f);
     private static readonly Vector4 Amber = new(0.95f, 0.75f, 0.35f, 1f);
     private static readonly (string Key, string Label)[] Lists = { ("blu", "Blue Magic"), ("bst", "Beasts") };
+    private const string Divider = "·";
+    private const string TotalTitle = "Total";
 
     private readonly Plugin plugin;
     private readonly IGameGui gameGui;
@@ -112,24 +114,8 @@ public sealed class MainWindow : Window
         }
         var shownDone = listed.Count(r => r.Done);
         var obtained = doneById.Count(kv => kv.Value);
-        var (shownCount, overallCount, hiddenNote) = Progress.Summary(shownDone, listed.Count, obtained, entries.Count,
-            levelById.Count(kv => kv.Value == null), unobtainedOnly);
-        if (shownCount != null)
-        {
-            if (shownDone == listed.Count && listed.Count > 0) ImGui.TextColored(Green, shownCount); else ImGui.Text(shownCount);
-            ImGui.SameLine();
-            ImGui.TextColored(Grey, "·");
-            ImGui.SameLine();
-        }
-        if (obtained == entries.Count && entries.Count > 0) ImGui.TextColored(Green, overallCount); else ImGui.Text(overallCount);
-        if (hiddenNote != null)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(Grey, $"· {hiddenNote}");
-        }
-        ImGui.Spacing();
-        // the controls above stay put; only the list scrolls
-        ImGui.BeginChild($"list##{list}", new Vector2(0, 0), false);
+        var filtered = Progress.Filtered(listed.Count, entries.Count, unobtainedOnly);
+        var total = Progress.Summary(shownDone, listed.Count, obtained, entries.Count, levelById.Count(kv => kv.Value == null), unobtainedOnly, filtered);
         var groups = cfg.GroupByBand
             ? Kinds.Bands.Select(b => (Title: $"Lv {b.Lo}-{b.Hi}", Key: $"band{b.Lo}", Band: ((int, int)?)b, All: false)).ToList()
             : new List<(string Title, string Key, (int, int)? Band, bool All)>();
@@ -138,6 +124,8 @@ public sealed class MainWindow : Window
         // an entry Include hides has no shown level, so it is counted in the band it would land in with every box ticked
         var everyKind = Kinds.OptIn.Select(o => o.Key).ToHashSet();
         var bandLevelById = entries.ToDictionary(e => e.Id, e => levelById[e.Id] ?? Kinds.ShownLevel(e, everyKind, usable));
+        var bands = new List<(string Title, string Key, List<(Entry Entry, List<Source> Shown, bool Done, int Lv)> Rows, bool Complete, bool AllDone,
+            (string? Shown, string Overall, string? Hidden) Counts)>();
         foreach (var (title, key, band, all) in groups)
         {
             bool InBand(int? level) => all || (level is int l ? (band is (int lo, int hi) ? l >= lo && l <= hi : Kinds.BandOf(l) == null) : band == null);
@@ -145,13 +133,35 @@ public sealed class MainWindow : Window
             if (rows.Count == 0) continue;
             var members = entries.Where(e => InBand(bandLevelById[e.Id])).ToList();
             var done = rows.Count(r => r.Done);
-            var complete = done == rows.Count;
-            var counts = Progress.Summary(done, rows.Count, members.Count(e => doneById[e.Id]), members.Count,
-                members.Count(e => levelById[e.Id] == null), unobtainedOnly);
-            var header = $"{title}   {Progress.Joined(counts)}" + (complete ? "   Complete, look at the next band" : "") + $"##{key}";
+            var membersDone = members.Count(e => doneById[e.Id]);
+            bands.Add((title, key, rows, done == rows.Count, membersDone == members.Count, Progress.Summary(done, rows.Count, membersDone, members.Count,
+                members.Count(e => levelById[e.Id] == null), unobtainedOnly, filtered)));
+        }
+        // the top line and every band header share their columns, so each is as wide as its widest text
+        var style = ImGui.GetStyle();
+        var gap = style.ItemSpacing.X * 1.5f;
+        var divider = ImGui.CalcTextSize(Divider).X;
+        var lines = bands.Select(b => (b.Title, b.Counts)).Prepend((Title: TotalTitle, Counts: total)).ToList();
+        var at = Progress.Columns(lines.Max(l => Width(l.Title)), lines.Max(l => Width(l.Counts.Shown)), lines.Max(l => Width(l.Counts.Overall)),
+            lines.Max(l => Width(l.Counts.Hidden)), gap, divider);
+        // a header draws its label past its arrow, and the top line starts where those labels do
+        var inset = ImGui.GetFontSize() + style.FramePadding.X * 3;
+        var origin = ImGui.GetCursorPosX() + inset;
+        ImGui.SetCursorPosX(origin);
+        ImGui.Text(TotalTitle);
+        DrawCounts(origin, at, gap + divider, total, shownDone == listed.Count && listed.Count > 0, obtained == entries.Count && entries.Count > 0, null);
+        ImGui.Spacing();
+        // the controls above stay put; only the list scrolls
+        ImGui.BeginChild($"list##{list}", new Vector2(0, 0), false);
+        foreach (var (title, key, rows, complete, allDone, counts) in bands)
+        {
+            origin = ImGui.GetCursorPosX() + inset;
             if (complete) ImGui.PushStyleColor(ImGuiCol.Text, Green);
-            var open = ImGui.CollapsingHeader(header, complete ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.DefaultOpen);
+            // the id leaves the counts out, so a band keeps its open state when one changes; a search or completion starts it over
+            var open = ImGui.CollapsingHeader($"{title}##{key}{(complete ? "-complete" : "")}-{query}",
+                complete ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.DefaultOpen);
             if (complete) ImGui.PopStyleColor();
+            DrawCounts(origin, at, gap + divider, counts, complete, allDone, complete ? "Complete, look at the next band" : null);
             if (!open) continue;
             ImGui.Indent();
             // fixed widths for the optional cells keep every band aligned; the source column takes the rest
@@ -179,6 +189,41 @@ public sealed class MainWindow : Window
         }
         ImGui.EndChild();
         DrawTickConfirmation();
+    }
+
+    private static float Width(string? text)
+        => text == null ? 0 : ImGui.CalcTextSize(text).X;
+
+    private static void Counted(bool done, string text)
+    {
+        if (done) ImGui.TextColored(Green, text); else ImGui.Text(text);
+    }
+
+    // Each part is placed at its column's left edge on the line of the item drawn just before.
+    private static void DrawCounts(float origin, (float Shown, float Overall, float Hidden, float Note) at, float dividerBefore,
+        (string? Shown, string Overall, string? Hidden) counts, bool shownDone, bool allDone, string? note)
+    {
+        if (counts.Shown != null)
+        {
+            ImGui.SameLine(origin + at.Shown);
+            Counted(shownDone, counts.Shown);
+            ImGui.SameLine(origin + at.Overall - dividerBefore);
+            ImGui.TextColored(Grey, Divider);
+        }
+        ImGui.SameLine(origin + at.Overall);
+        Counted(allDone, counts.Overall);
+        if (counts.Hidden != null)
+        {
+            ImGui.SameLine(origin + at.Hidden - dividerBefore);
+            ImGui.TextColored(Grey, Divider);
+            ImGui.SameLine(origin + at.Hidden);
+            ImGui.TextColored(Grey, counts.Hidden);
+        }
+        if (note != null)
+        {
+            ImGui.SameLine(origin + at.Note);
+            ImGui.TextColored(Green, note);
+        }
     }
 
     // A tamed beast is ticked by hand, so a click asks first; the box shows the saved value until then.
