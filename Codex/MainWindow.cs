@@ -159,7 +159,7 @@ public sealed class MainWindow : Window
             if (complete) ImGui.PushStyleColor(ImGuiCol.Text, Green);
             // the id leaves the counts out, so a band keeps its open state when one changes; a search or completion starts it over
             var open = ImGui.CollapsingHeader($"{title}##{key}{(complete ? "-complete" : "")}-{query}",
-                complete ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.DefaultOpen);
+                Progress.OpenByDefault(complete, query.Trim().Length > 0, unobtainedOnly) ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
             if (complete) ImGui.PopStyleColor();
             DrawCounts(origin, at, gap + divider, counts, complete, allDone, complete ? "Complete, look at the next band" : null);
             if (!open) continue;

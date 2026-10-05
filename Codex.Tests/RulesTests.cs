@@ -86,6 +86,15 @@ public class RulesTests
     }
 
     [Fact]
+    public void A_finished_band_starts_closed_unless_a_search_has_a_match_to_show_in_it()
+    {
+        Assert.True(Progress.OpenByDefault(complete: false, searching: false, unobtainedOnly: false));
+        Assert.False(Progress.OpenByDefault(complete: true, searching: false, unobtainedOnly: false));
+        Assert.True(Progress.OpenByDefault(complete: true, searching: true, unobtainedOnly: false));
+        Assert.False(Progress.OpenByDefault(complete: true, searching: true, unobtainedOnly: true));
+    }
+
+    [Fact]
     public void An_unfiltered_list_has_one_count_right_after_the_title()
         => Assert.Equal((70f, 70f, 300f, 280f), Progress.Columns(title: 60, shown: 0, overall: 200, hidden: 0, gap: 10, divider: 10));
 

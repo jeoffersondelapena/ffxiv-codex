@@ -226,6 +226,10 @@ public static class Progress
         return (unobtainedOnly ? $"Shown: {shown - doneShown} remaining" : $"Shown: {Count(doneShown, shown)}", $"Overall: {Count(done, total)}", hidden);
     }
 
+    // A finished band starts closed; a search opens it so a match inside is seen, unless Unobtained Only leaves it no rows.
+    public static bool OpenByDefault(bool complete, bool searching, bool unobtainedOnly)
+        => !complete || (searching && !unobtainedOnly);
+
     // Left edges from a row's title: each part starts past the widest text of the column before it.
     public static (float Shown, float Overall, float Hidden, float Note) Columns(float title, float shown, float overall, float hidden, float gap,
         float divider)
