@@ -3,7 +3,8 @@ import os, subprocess, sys
 here = os.path.dirname(os.path.abspath(__file__)); os.chdir(here)
 try:
     sys.path.insert(0, './pylib'); import bs4  # noqa
-except ImportError:
+except Exception:  # missing, or installed by a newer Python than this one (soupsieve 2.9 needs 3.10; the watcher runs 3.9)
+    import shutil; shutil.rmtree('./pylib', ignore_errors=True)
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--quiet', '--target', './pylib', 'beautifulsoup4'])
 for d in ('pages/spells', 'pages/beasts', 'enemies', 'places'): os.makedirs(d, exist_ok=True)
 for step in ('scrape.py', 'fetch_pages.py', 'fetch_enemies.py', 'fetch_places.py', 'build_data.py', 'enrich.py'):
